@@ -1,0 +1,25 @@
+# --- OS Files ---
+.DS_Store
+Thumbs.db
+
+# --- Python ---
+backend-python/venv/
+backend-python/__pycache__/
+*.pyc
+
+# --- Java ---
+backend-java/target/
+backend-java/.mvn/wrapper/maven-wrapper.jar
+*.class
+*.log
+
+# --- React ---
+frontend-react/node_modules/
+frontend-react/dist/
+frontend-react/build/
+frontend-react/.env.local
+
+# --- IDE Settings (Optional but recommended) ---
+.idea/
+.vscode/
+*.iml
