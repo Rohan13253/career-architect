@@ -1,3 +1,4 @@
+// frontend-react/src/components/ProjectsView.jsx
 import React, { useState } from 'react';
 import {
   ArrowLeft,
@@ -19,7 +20,7 @@ export default function ProjectsView({ projects, onBack }) {
     return (
       <div className="projects-empty">
         <p>No projects recommended yet.</p>
-        <button onClick={onBack} className="btn btn-outline">
+        <button onClick={onBack} className="btn-back-projects">
           Go Back
         </button>
       </div>
@@ -37,12 +38,14 @@ export default function ProjectsView({ projects, onBack }) {
       <div className="projects-container">
         {/* Header */}
         <div className="projects-header">
-          <button onClick={onBack} className="btn btn-outline">
+          {/* FIXED BUTTON HERE */}
+          <button onClick={onBack} className="btn-back-projects">
             <ArrowLeft size={20} />
             Back to Dashboard
           </button>
+          
           <h1 className="projects-title">
-            <Star size={28} />
+            <Star size={28} className="text-yellow-400" />
             Recommended Projects
           </h1>
         </div>
@@ -75,7 +78,7 @@ export default function ProjectsView({ projects, onBack }) {
           ))}
         </div>
 
-        {/* Project Detail Modal */}
+        {/* Modal Logic (Unchanged) */}
         {selectedProject && (
           <div className="modal-overlay" onClick={() => setSelectedProject(null)}>
             <div className="modal-container" onClick={(e) => e.stopPropagation()}>
@@ -174,21 +177,6 @@ export default function ProjectsView({ projects, onBack }) {
                       </div>
                     </section>
                   )}
-
-                {/* Resume Bullets */}
-                {selectedProject.resume_bullets && selectedProject.resume_bullets.length > 0 && (
-                  <section className="modal-section">
-                    <h3 className="modal-heading">Ready-to-Use Resume Bullets</h3>
-                    <div className="resume-bullets">
-                      {selectedProject.resume_bullets.map((bullet, idx) => (
-                        <div key={idx} className="resume-bullet">
-                          <span className="bullet-dot">•</span>
-                          <span className="bullet-text">{bullet}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                )}
               </div>
             </div>
           </div>

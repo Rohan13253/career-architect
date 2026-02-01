@@ -1,3 +1,4 @@
+// frontend-react/src/components/ScoreGauge.jsx
 import React from 'react';
 
 export default function ScoreGauge({ score }) {
@@ -6,43 +7,46 @@ export default function ScoreGauge({ score }) {
   const strokeWidth = 14;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = ((100 - score) / 100) * circumference;
+  // Clamp score between 0 and 100
+  const safeScore = Math.min(Math.max(score, 0), 100);
+  const progress = ((100 - safeScore) / 100) * circumference;
+  const center = size / 2;
 
-  // Color based on score
-  const getColor = (score) => {
-    if (score >= 80) return '#10b981'; // Green
-    if (score >= 60) return '#8b5cf6'; // Purple
-    if (score >= 40) return '#f59e0b'; // Amber
+  // Color logic
+  const getColor = (s) => {
+    if (s >= 80) return '#10b981'; // Green
+    if (s >= 60) return '#8b5cf6'; // Purple
+    if (s >= 40) return '#f59e0b'; // Amber
     return '#ef4444'; // Red
   };
 
-  const getLabel = (score) => {
-    if (score >= 80) return 'Excellent';
-    if (score >= 60) return 'Good';
-    if (score >= 40) return 'Fair';
+  const getLabel = (s) => {
+    if (s >= 80) return 'Excellent';
+    if (s >= 60) return 'Good';
+    if (s >= 40) return 'Fair';
     return 'Needs Work';
   };
 
-  const color = getColor(score);
-  const label = getLabel(score);
+  const color = getColor(safeScore);
+  const label = getLabel(safeScore);
 
   return (
-    <div className="score-gauge">
+    <div className="score-gauge-container">
       <svg width={size} height={size} className="gauge-svg">
         {/* Background Circle */}
         <circle
-          cx={size / 2}
-          cy={size / 2}
+          cx={center}
+          cy={center}
           r={radius}
           fill="none"
-          stroke="rgba(139, 92, 246, 0.1)"
+          stroke="rgba(255, 255, 255, 0.1)"
           strokeWidth={strokeWidth}
         />
 
         {/* Progress Circle */}
         <circle
-          cx={size / 2}
-          cy={size / 2}
+          cx={center}
+          cy={center}
           r={radius}
           fill="none"
           stroke={color}
@@ -50,20 +54,37 @@ export default function ScoreGauge({ score }) {
           strokeDasharray={circumference}
           strokeDashoffset={progress}
           strokeLinecap="round"
-          transform={`rotate(-90 ${size / 2} ${size / 2})`}
-          style={{
-            transition: 'stroke-dashoffset 1s ease',
-          }}
+          transform={`rotate(-90 ${center} ${center})`}
+          style={{ transition: 'stroke-dashoffset 1s ease' }}
         />
-      </svg>
 
-      {/* Score Content */}
-      <div className="gauge-content">
-        <div className="gauge-score" style={{ color }}>
-          {score}
-        </div>
-        <div className="gauge-max">/100</div>
-        <div className="gauge-label">{label}</div>
+        {/* Text INSIDE the SVG (Guarantees Centering) */}
+        <text
+          x="50%"
+          y="45%"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill={color}
+          style={{ fontSize: '3rem', fontWeight: '800' }}
+        >
+          {safeScore}
+        </text>
+        
+        <text
+          x="50%"
+          y="65%"
+          textAnchor="middle"
+          dominantBaseline="middle"
+          fill="#94a3b8"
+          style={{ fontSize: '0.9rem', fontWeight: '600' }}
+        >
+          / 100
+        </text>
+      </svg>
+      
+      {/* Label Text Below */}
+      <div className="gauge-label-text" style={{ color: color }}>
+        {label}
       </div>
     </div>
   );
