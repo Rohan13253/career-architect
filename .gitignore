@@ -23,3 +23,9 @@ frontend-react/.env.local
 .idea/
 .vscode/
 *.iml
+
+# Secrets and Environment Variables
+.env
+.env.local
+*.env
+secrets.properties
