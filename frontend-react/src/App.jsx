@@ -1,34 +1,48 @@
 import React, { useState } from 'react';
-import { 
-  Upload, Brain, CheckCircle2, XCircle, FileText, 
-  Loader2, AlertCircle, Star, Code2, Layers, 
-  MessageSquare, X, ChevronDown, ChevronUp 
+import {
+  Upload,
+  Brain,
+  CheckCircle2,
+  XCircle,
+  FileText,
+  Loader2,
+  AlertCircle,
+  Code2,
+  Rocket,
+  Github,
+  Zap,
 } from 'lucide-react';
-import { 
-  RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, 
-  Radar, Legend, ResponsiveContainer 
+import {
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+  Legend,
+  ResponsiveContainer,
 } from 'recharts';
-import ChatComponent from './ChatComponent';
+import ScoreGauge from './components/ScoreGauge';
+import ProjectsView from './components/ProjectsView';
+import FloatingChat from './components/FloatingChat';
 import './App.css';
 
 const API_URL = 'http://localhost:8080/api/v1';
 
-function App() {
+export default function App() {
   const [file, setFile] = useState(null);
   const [jobDescription, setJobDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
   const [dragActive, setDragActive] = useState(false);
-  const [selectedProject, setSelectedProject] = useState(null);
-  const [expandedQuestion, setExpandedQuestion] = useState(null);
+  const [currentView, setCurrentView] = useState('dashboard');
 
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.type === "dragenter" || e.type === "dragover") {
+    if (e.type === 'dragenter' || e.type === 'dragover') {
       setDragActive(true);
-    } else if (e.type === "dragleave") {
+    } else if (e.type === 'dragleave') {
       setDragActive(false);
     }
   };
@@ -37,8 +51,9 @@ function App() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    if (e.dataTransfer.files?.[0]?.type === 'application/pdf') {
-      setFile(e.dataTransfer.files[0]);
+    const droppedFile = e.dataTransfer.files?.[0];
+    if (droppedFile?.type === 'application/pdf') {
+      setFile(droppedFile);
       setError(null);
     } else {
       setError('Please upload a PDF file');
@@ -46,25 +61,30 @@ function App() {
   };
 
   const handleUpload = async () => {
-    if (!file) return setError('Please select a file');
+    if (!file) {
+      setError('Please select a file');
+      return;
+    }
     setLoading(true);
     setError(null);
-    
+
     const formData = new FormData();
     formData.append('file', file);
-    if (jobDescription.trim()) formData.append('jd', jobDescription.trim());
+    if (jobDescription.trim()) {
+      formData.append('jd', jobDescription.trim());
+    }
 
     try {
       const response = await fetch(`${API_URL}/analyze`, {
         method: 'POST',
         body: formData,
       });
-      
+
       if (!response.ok) throw new Error('Analysis failed');
-      
+
       const result = await response.json();
       setData(result);
-    } catch (err) {
+    } catch {
       setError('Failed to connect. Ensure all services are running.');
     } finally {
       setLoading(false);
@@ -76,72 +96,95 @@ function App() {
     setJobDescription('');
     setData(null);
     setError(null);
-    setSelectedProject(null);
+    setCurrentView('dashboard');
   };
 
-  const openProjectModal = (project) => {
-    setSelectedProject(project);
-    setExpandedQuestion(null);
-  };
-
-  const closeProjectModal = () => {
-    setSelectedProject(null);
-    setExpandedQuestion(null);
-  };
+  // Show projects view
+  if (data && currentView === 'projects') {
+    return (
+      <>
+        <ProjectsView
+          projects={data.recommended_projects}
+          onBack={() => setCurrentView('dashboard')}
+        />
+        {data && <FloatingChat analysisData={data} />}
+      </>
+    );
+  }
 
   return (
-    <div className="app-container">
+    <div className="app-wrapper">
+      {/* Background effects */}
+      <div className="bg-effects">
+        <div className="glow-orb glow-orb-purple" />
+        <div className="glow-orb glow-orb-cyan" />
+      </div>
+
       {!data ? (
         /* ===== UPLOAD SCREEN ===== */
         <div className="upload-screen">
           <div className="upload-header">
-            <div className="brand">
-              <Brain className="brand-icon" size={40} />
+            <div className="brand-logo">
+              <div className="brand-icon-wrapper">
+                <Brain className="brand-icon" size={40} />
+              </div>
               <h1 className="brand-title">CareerArchitect.ai</h1>
             </div>
             <p className="brand-subtitle">AI-Powered Career Engineering Platform</p>
           </div>
 
-          <div className="upload-container">
-            <div 
+          <div className="upload-content">
+            {/* Dropzone */}
+            <div
               className={`dropzone ${dragActive ? 'drag-active' : ''} ${file ? 'has-file' : ''}`}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
               onDragOver={handleDrag}
               onDrop={handleDrop}
             >
-              <div className="dropzone-icon">
-                {file ? <CheckCircle2 size={48} /> : <Upload size={48} />}
+              <div className="dropzone-inner">
+                <div className={`dropzone-icon ${file ? 'success' : ''}`}>
+                  {file ? <CheckCircle2 size={40} /> : <Upload size={40} />}
+                </div>
+                <div className="dropzone-text">
+                  <h3 className="dropzone-title">
+                    {file ? file.name : 'Upload Your Resume'}
+                  </h3>
+                  <p className="dropzone-desc">
+                    {file ? `${(file.size / 1024).toFixed(1)} KB` : 'Drop PDF here or click to browse'}
+                  </p>
+                </div>
+
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => {
+                    const selectedFile = e.target.files?.[0];
+                    if (selectedFile) {
+                      setFile(selectedFile);
+                      setError(null);
+                    }
+                  }}
+                  className="file-input-hidden"
+                  id="fileInput"
+                />
+
+                {!file && (
+                  <label htmlFor="fileInput" className="btn btn-outline">
+                    Choose File
+                  </label>
+                )}
               </div>
-              <h3 className="dropzone-title">
-                {file ? file.name : 'Upload Your Resume'}
-              </h3>
-              <p className="dropzone-desc">
-                {file ? `${(file.size / 1024).toFixed(1)} KB` : 'Drop PDF here or click to browse'}
-              </p>
-              
-              <input
-                type="file"
-                accept=".pdf"
-                onChange={(e) => setFile(e.target.files?.[0])}
-                className="file-input"
-                id="fileInput"
-              />
-              
-              {!file && (
-                <label htmlFor="fileInput" className="btn-upload">
-                  Choose File
-                </label>
-              )}
             </div>
 
-            <div className="jd-container">
-              <div className="jd-header">
-                <FileText size={20} />
+            {/* Job Description */}
+            <div className="jd-section">
+              <div className="jd-label">
+                <FileText size={18} />
                 <span>Job Description (Optional)</span>
               </div>
               <textarea
-                className="jd-textarea"
+                className="jd-input"
                 placeholder="Paste job description for targeted gap analysis..."
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
@@ -149,24 +192,26 @@ function App() {
               />
             </div>
 
+            {/* Analyze Button */}
             {file && (
-              <button onClick={handleUpload} disabled={loading} className="btn-analyze">
+              <button onClick={handleUpload} disabled={loading} className="btn btn-primary btn-large">
                 {loading ? (
                   <>
-                    <Loader2 className="spin" size={20} />
+                    <Loader2 className="spin" size={22} />
                     Analyzing with AI...
                   </>
                 ) : (
                   <>
-                    <Brain size={20} />
+                    <Brain size={22} />
                     Analyze Resume
                   </>
                 )}
               </button>
             )}
 
+            {/* Error */}
             {error && (
-              <div className="error-alert">
+              <div className="alert alert-error">
                 <AlertCircle size={20} />
                 <span>{error}</span>
               </div>
@@ -176,245 +221,182 @@ function App() {
       ) : (
         /* ===== DASHBOARD SCREEN ===== */
         <div className="dashboard-screen">
-          <div className="dashboard-header">
-            <div className="brand-small">
-              <Brain size={32} />
-              <h2>CareerArchitect.ai</h2>
-            </div>
-            <button onClick={resetUpload} className="btn-reset">
-              New Analysis
-            </button>
-          </div>
-
-          {/* ===== SCORE BANNER ===== */}
-          <div className="score-banner">
-            <div className="score-main">
-              <span className="score-label">Overall Score</span>
-              <div className="score-value">{data.candidate_profile.total_score}</div>
-              <span className="score-max">/100</span>
-            </div>
-            <div className="score-meta">
-              <div className="meta-item">
-                <span className="meta-label">Candidate</span>
-                <span className="meta-value">{data.candidate_profile.name}</span>
-              </div>
-              <div className="meta-item">
-                <span className="meta-label">Level</span>
-                <span className="meta-value">{data.candidate_profile.market_fit_level}</span>
-              </div>
-              {data.candidate_profile.github_handle && (
-                <div className="meta-item">
-                  <Code2 size={16} />
-                  <span className="meta-value">
-                    {data.candidate_profile.code_verified ? '✓ Code Verified' : 'GitHub Linked'}
-                  </span>
+          {/* Header */}
+          <header className="dashboard-header">
+            <div className="header-content">
+              <div className="header-brand">
+                <div className="header-icon-wrapper">
+                  <Brain className="header-icon" size={24} />
                 </div>
-              )}
+                <h1 className="header-title">CareerArchitect.ai</h1>
+              </div>
+              <button onClick={resetUpload} className="btn btn-outline">
+                New Analysis
+              </button>
             </div>
-          </div>
+          </header>
 
-          {/* ===== SPLIT VIEW: RADAR + SKILLS ===== */}
-          <div className="split-view">
-            {/* LEFT: Radar Chart */}
-            <div className="panel radar-panel">
-              <h3 className="panel-title">Skill Analysis</h3>
-              <div className="radar-container">
-                <ResponsiveContainer width="100%" height={400}>
-                  <RadarChart data={data.radar_chart_data}>
-                    <PolarGrid stroke="#1e3a5f" />
-                    <PolarAngleAxis dataKey="skill" stroke="#94a3b8" />
-                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} />
-                    <Radar 
-                      name="Your Score" 
-                      dataKey="userScore" 
-                      stroke="#8b5cf6" 
-                      fill="#8b5cf6" 
-                      fillOpacity={0.6}
-                    />
-                    <Radar 
-                      name="Market" 
-                      dataKey="marketScore" 
-                      stroke="#06b6d4" 
-                      fill="#06b6d4" 
-                      fillOpacity={0.3}
-                    />
-                    <Legend />
-                  </RadarChart>
-                </ResponsiveContainer>
+          <main className="dashboard-main">
+            {/* Score Banner */}
+            <div className="score-banner">
+              <div className="score-banner-content">
+                {/* Score Gauge */}
+                <div className="score-gauge-wrapper">
+                  <ScoreGauge score={data.candidate_profile.total_score} />
+                </div>
+
+                {/* Info Cards */}
+                <div className="info-cards">
+                  <InfoCard
+                    label="Candidate"
+                    value={data.candidate_profile.name}
+                    icon={<Brain size={16} />}
+                  />
+                  <InfoCard
+                    label="Level"
+                    value={data.candidate_profile.market_fit_level}
+                    icon={<Zap size={16} />}
+                  />
+                  <InfoCard
+                    label="Skills"
+                    value={`${data.candidate_profile.current_skills?.length || 0} Found`}
+                    icon={<CheckCircle2 size={16} />}
+                  />
+                  <InfoCard
+                    label="GitHub"
+                    value={
+                      data.candidate_profile.github_handle
+                        ? data.candidate_profile.code_verified
+                          ? 'Verified'
+                          : 'Linked'
+                        : 'Not Linked'
+                    }
+                    icon={<Github size={16} />}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* RIGHT: Skills Breakdown */}
-            <div className="panel skills-panel">
+            {/* Skill Analysis + Skills Section */}
+            <div className="content-grid">
+              {/* Radar Chart */}
+              <div className="radar-section">
+                <h2 className="section-title">Skill Analysis</h2>
+                <div className="radar-container">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={data.radar_chart_data}>
+                      <PolarGrid stroke="rgba(139, 92, 246, 0.2)" />
+                      <PolarAngleAxis
+                        dataKey="skill"
+                        stroke="#94a3b8"
+                        tick={{ fill: '#94a3b8', fontSize: 12 }}
+                      />
+                      <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+                      <Radar
+                        name="Your Score"
+                        dataKey="userScore"
+                        stroke="#8b5cf6"
+                        fill="#8b5cf6"
+                        fillOpacity={0.5}
+                        strokeWidth={2}
+                      />
+                      <Radar
+                        name="Market Average"
+                        dataKey="marketScore"
+                        stroke="#06b6d4"
+                        fill="#06b6d4"
+                        fillOpacity={0.2}
+                        strokeWidth={2}
+                        strokeDasharray="4 4"
+                      />
+                      <Legend
+                        wrapperStyle={{ paddingTop: 20 }}
+                        formatter={(value) => <span style={{ color: '#94a3b8' }}>{value}</span>}
+                      />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              {/* Skills Lists */}
               <div className="skills-section">
-                <h3 className="skills-title">
-                  <CheckCircle2 size={20} className="icon-green" />
-                  Skills You Have
-                </h3>
-                <div className="skills-grid">
-                  {data.candidate_profile.current_skills?.map((skill, idx) => (
-                    <div key={idx} className="skill-chip has-skill">
-                      <CheckCircle2 size={16} />
-                      {skill}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="skills-divider"></div>
-
-              <div className="skills-section">
-                <h3 className="skills-title">
-                  <XCircle size={20} className="icon-red" />
-                  Skills to Acquire
-                </h3>
-                <div className="skills-grid">
-                  {data.candidate_profile.missing_skills?.map((skill, idx) => (
-                    <div key={idx} className="skill-chip missing-skill">
-                      <XCircle size={16} />
-                      {skill}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* ===== PROJECT CARDS ===== */}
-          <div className="projects-section">
-            <h2 className="section-title">
-              <Star size={24} />
-              Recommended Projects
-            </h2>
-            <div className="project-cards">
-              {data.recommended_projects?.map((project, idx) => (
-                <div 
-                  key={idx} 
-                  className="project-card"
-                  onClick={() => openProjectModal(project)}
-                >
-                  <div className="project-type">{project.type}</div>
-                  <h3 className="project-title">{project.title}</h3>
-                  <p className="project-tagline">{project.tagline}</p>
-                  <div className="project-footer">
-                    <span>{project.tech_stack?.length || 0} Technologies</span>
-                    <span className="view-details">View Details →</span>
+                {/* Skills You Have */}
+                <div className="skill-card has-skills">
+                  <div className="skill-card-header">
+                    <CheckCircle2 className="skill-icon success" size={20} />
+                    <h3 className="skill-card-title">Skills You Have</h3>
+                    <span className="skill-badge success">
+                      {data.candidate_profile.current_skills?.length || 0}
+                    </span>
+                  </div>
+                  <div className="skill-chips-container">
+                    {data.candidate_profile.current_skills?.slice(0, 12).map((skill, idx) => (
+                      <span key={idx} className="skill-chip success">
+                        <CheckCircle2 size={14} />
+                        {skill}
+                      </span>
+                    ))}
+                    {(data.candidate_profile.current_skills?.length || 0) > 12 && (
+                      <span className="skill-chip-more">
+                        +{data.candidate_profile.current_skills.length - 12} more
+                      </span>
+                    )}
                   </div>
                 </div>
-              ))}
-            </div>
-          </div>
 
-          {/* ===== CHAT COMPONENT ===== */}
-          <div className="chat-section">
-            <ChatComponent analysisData={data} />
-          </div>
+                {/* Skills to Acquire */}
+                <div className="skill-card missing-skills">
+                  <div className="skill-card-header">
+                    <XCircle className="skill-icon error" size={20} />
+                    <h3 className="skill-card-title">Skills to Acquire</h3>
+                    <span className="skill-badge error">
+                      {data.candidate_profile.missing_skills?.length || 0}
+                    </span>
+                  </div>
+                  <div className="skill-chips-container">
+                    {data.candidate_profile.missing_skills?.slice(0, 8).map((skill, idx) => (
+                      <span key={idx} className="skill-chip error">
+                        <XCircle size={14} />
+                        {skill}
+                      </span>
+                    ))}
+                    {(data.candidate_profile.missing_skills?.length || 0) > 8 && (
+                      <span className="skill-chip-more">
+                        +{data.candidate_profile.missing_skills.length - 8} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* View Projects Button */}
+                <button
+                  onClick={() => setCurrentView('projects')}
+                  className="btn btn-gradient btn-large"
+                >
+                  <Rocket size={20} />
+                  View Recommended Projects
+                  <Code2 size={16} />
+                </button>
+              </div>
+            </div>
+          </main>
         </div>
       )}
 
-      {/* ===== PROJECT MODAL OVERLAY ===== */}
-      {selectedProject && (
-        <div className="modal-overlay" onClick={closeProjectModal}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <button className="modal-close" onClick={closeProjectModal}>
-              <X size={24} />
-            </button>
-
-            <div className="modal-header">
-              <div className="modal-type">{selectedProject.type}</div>
-              <h2 className="modal-title">{selectedProject.title}</h2>
-              <p className="modal-tagline">{selectedProject.tagline}</p>
-            </div>
-
-            <div className="modal-body">
-              {/* Description */}
-              <section className="modal-section">
-                <h3 className="section-heading">Overview</h3>
-                <p className="section-text">{selectedProject.description}</p>
-              </section>
-
-              {/* System Architecture */}
-              <section className="modal-section">
-                <h3 className="section-heading">
-                  <Layers size={20} />
-                  System Architecture
-                </h3>
-                <div className="architecture-box">
-                  {selectedProject.system_architecture}
-                </div>
-              </section>
-
-              {/* Tech Stack */}
-              <section className="modal-section">
-                <h3 className="section-heading">Tech Stack</h3>
-                <div className="tech-grid">
-                  {selectedProject.tech_stack?.map((tech, idx) => (
-                    <div key={idx} className="tech-item">
-                      <div className="tech-name">{tech.name}</div>
-                      <div className="tech-usage">{tech.usage}</div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              {/* Learning Milestones */}
-              <section className="modal-section">
-                <h3 className="section-heading">Learning Roadmap</h3>
-                <div className="milestones-list">
-                  {selectedProject.learning_milestones?.map((milestone, idx) => (
-                    <div key={idx} className="milestone-item">
-                      <div className="milestone-week">Week {milestone.week}</div>
-                      <div className="milestone-task">{milestone.task}</div>
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              {/* Mock Interview Questions */}
-              <section className="modal-section">
-                <h3 className="section-heading">
-                  <MessageSquare size={20} />
-                  Mock Interview Questions
-                </h3>
-                <div className="interview-questions">
-                  {selectedProject.mock_interview_questions?.map((question, idx) => (
-                    <div key={idx} className="question-item">
-                      <button 
-                        className="question-toggle"
-                        onClick={() => setExpandedQuestion(expandedQuestion === idx ? null : idx)}
-                      >
-                        <span className="question-number">Q{idx + 1}</span>
-                        <span className="question-text">{question}</span>
-                        {expandedQuestion === idx ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-                      </button>
-                      {expandedQuestion === idx && (
-                        <div className="question-hint">
-                          💡 Tip: Think about scalability, fault tolerance, and trade-offs in your answer.
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              {/* Resume Bullets */}
-              <section className="modal-section">
-                <h3 className="section-heading">Ready-to-Use Resume Bullets</h3>
-                <div className="resume-bullets">
-                  {selectedProject.resume_bullets?.map((bullet, idx) => (
-                    <div key={idx} className="bullet-item">
-                      <span className="bullet-dot">•</span>
-                      <span className="bullet-text">{bullet}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Floating Chat Widget */}
+      {data && <FloatingChat analysisData={data} />}
     </div>
   );
 }
 
-export default App;
+function InfoCard({ label, value, icon }) {
+  return (
+    <div className="info-card">
+      <div className="info-card-label">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <p className="info-card-value">{value}</p>
+    </div>
+  );
+}
