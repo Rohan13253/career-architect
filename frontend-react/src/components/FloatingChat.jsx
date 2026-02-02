@@ -38,8 +38,13 @@ export default function FloatingChat({ analysisData }) {
     setLoading(true);
 
     try {
-      // Ensure this URL matches your Python Backend Port (5001)
-      const res = await fetch('http://localhost:5001/chat-with-mentor', {
+      // 1. Get the URL from the environment (Best practice)
+      // If VITE_PYTHON_API_URL is set in Vercel, it uses that.
+      // Otherwise, it falls back to your hardcoded Render link or localhost.
+      const PYTHON_API = import.meta.env.VITE_PYTHON_API_URL || 'https://career-architect-1.onrender.com';
+
+      // 2. Make the request
+      const res = await fetch(`${PYTHON_API}/chat-with-mentor`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -55,7 +60,7 @@ export default function FloatingChat({ analysisData }) {
       console.error(err);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: "⚠️ I can't reach the Python brain. Is 'python app.py' running on port 5001?" 
+        content: "⚠️ I'm having trouble connecting to the mentor. Please try again in a moment!" 
       }]);
     } finally {
       setLoading(false);
@@ -111,7 +116,9 @@ export default function FloatingChat({ analysisData }) {
               )}
               
               <div className={`message-bubble ${msg.role}`}>
-                {msg.content}
+                {msg.content.split('\n').map((line, i) => (
+                  <p key={i}>{line}</p>
+                ))}
               </div>
 
               {msg.role === 'user' && (
