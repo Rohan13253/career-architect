@@ -1,152 +1,162 @@
+// frontend-react/src/components/FloatingChat.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { MessageCircle, X, Send, Bot, Sparkles } from 'lucide-react';
+import { Send, Bot, X, MessageSquare, User, Sparkles, ChevronDown } from 'lucide-react';
 
 export default function FloatingChat({ analysisData }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [messages, setMessages] = useState([]);
   const messagesEndRef = useRef(null);
 
-  const firstSkill = analysisData.candidate_profile.missing_skills?.[0] || 'your tech stack';
-  const candidateName = analysisData.candidate_profile.name?.split(' ')[0] || 'there';
-
-  // Initialize with welcome message when chat opens
+  // Initialize Chat with Context
   useEffect(() => {
-    if (isOpen && messages.length === 0) {
+    if (analysisData && messages.length === 0) {
+      const name = analysisData.candidate_profile.name?.split(' ')[0] || "there";
+      const skill = analysisData.candidate_profile.missing_skills?.[0] || "tech skills";
+      
       setMessages([
         {
           role: 'assistant',
-          content: `Hi ${candidateName}! I've analyzed your resume. I see opportunities to grow in ${firstSkill}. Want to discuss your path forward?`,
-        },
+          content: `Hi ${name}! 👋 I've analyzed your resume. I see a great opportunity to improve your **${skill}**. \n\nAsk me about project ideas, interview prep, or how to learn specific technologies!`
+        }
       ]);
     }
-  }, [isOpen, messages.length, candidateName, firstSkill]);
+  }, [analysisData]);
 
-  // Auto-scroll to bottom
+  // Auto-scroll
   useEffect(() => {
-    if (isOpen && messages.length > 0) {
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen]);
 
   const sendMessage = async () => {
     if (!input.trim()) return;
 
     const userMsg = { role: 'user', content: input };
-    setMessages((prev) => [...prev, userMsg]);
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
     setLoading(true);
 
     try {
+      // Ensure this URL matches your Python Backend Port (5001)
       const res = await fetch('http://localhost:5001/chat-with-mentor', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_message: input,
           chat_history: messages,
-          context: analysisData,
-        }),
+          context: analysisData
+        })
       });
 
       const data = await res.json();
-      setMessages((prev) => [...prev, { role: 'assistant', content: data.reply }]);
+      setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: 'assistant',
-          content: "I'm having trouble connecting right now. Please try again!",
-        },
-      ]);
+      console.error(err);
+      setMessages(prev => [...prev, { 
+        role: 'assistant', 
+        content: "⚠️ I can't reach the Python brain. Is 'python app.py' running on port 5001?" 
+      }]);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyPress = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
-    }
-  };
-
   return (
-    <div className="floating-chat">
-      {/* Chat Window */}
-      {isOpen && (
-        <div className="chat-window">
-          {/* Header */}
-          <div className="chat-header">
-            <div className="chat-header-content">
-              <div className="chat-bot-icon">
-                <Bot size={20} />
-              </div>
-              <div className="chat-header-text">
-                <h3 className="chat-title">AI Career Mentor</h3>
-                <p className="chat-subtitle">Ask about your analysis</p>
+    <div className="chat-widget-wrapper">
+      {/* 1. Floating Toggle Button */}
+      <button 
+        className={`chat-toggle-btn ${isOpen ? 'hidden' : ''}`}
+        onClick={() => setIsOpen(true)}
+      >
+        <div className="chat-btn-icon">
+          <Bot size={24} />
+        </div>
+        <span className="chat-btn-text">AI Mentor</span>
+        <span className="chat-notification-dot">1</span>
+      </button>
+
+      {/* 2. Chat Window */}
+      <div className={`chat-window ${isOpen ? 'active' : ''}`}>
+        {/* Header */}
+        <div className="chat-header">
+          <div className="chat-header-info">
+            <div className="chat-avatar-large">
+              <Bot size={24} />
+            </div>
+            <div>
+              <h3 className="chat-title">Career Mentor</h3>
+              <div className="chat-status">
+                <span className="status-dot"></span>
+                Online
               </div>
             </div>
-            <button className="chat-close-btn" onClick={() => setIsOpen(false)}>
-              <X size={20} />
-            </button>
           </div>
-
-          {/* Messages */}
-          <div className="chat-messages">
-            {messages.map((msg, idx) => (
-              <div
-                key={idx}
-                className={`chat-message ${msg.role === 'user' ? 'message-user' : 'message-assistant'}`}
-              >
-                <div className="message-bubble">{msg.content}</div>
-              </div>
-            ))}
-
-            {loading && (
-              <div className="chat-message message-assistant">
-                <div className="message-bubble message-loading">
-                  <Sparkles size={16} className="spin" />
-                  <span>Thinking...</span>
-                </div>
-              </div>
-            )}
-
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input */}
-          <div className="chat-input-area">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Ask me anything about your career..."
-              className="chat-input"
-              disabled={loading}
-            />
-            <button
-              onClick={sendMessage}
-              disabled={loading || !input.trim()}
-              className="chat-send-btn"
-            >
-              <Send size={20} />
-            </button>
-          </div>
+          <button className="chat-close-btn" onClick={() => setIsOpen(false)}>
+            <ChevronDown size={20} />
+          </button>
         </div>
-      )}
 
-      {/* FAB Button */}
-      <button
-        className={`fab-button ${isOpen ? 'fab-active' : ''}`}
-        onClick={() => setIsOpen(!isOpen)}
-        aria-label={isOpen ? 'Close chat' : 'Open chat'}
-      >
-        {isOpen ? <X size={24} /> : <MessageCircle size={24} />}
-      </button>
+        {/* Messages */}
+        <div className="chat-messages">
+          {messages.map((msg, idx) => (
+            <div 
+              key={idx} 
+              className={`message-row ${msg.role === 'user' ? 'user-row' : 'bot-row'}`}
+            >
+              {msg.role === 'assistant' && (
+                <div className="message-avatar bot">
+                  <Bot size={16} />
+                </div>
+              )}
+              
+              <div className={`message-bubble ${msg.role}`}>
+                {msg.content}
+              </div>
+
+              {msg.role === 'user' && (
+                <div className="message-avatar user">
+                  <User size={16} />
+                </div>
+              )}
+            </div>
+          ))}
+
+          {loading && (
+            <div className="message-row bot-row">
+              <div className="message-avatar bot">
+                <Bot size={16} />
+              </div>
+              <div className="message-bubble assistant typing-bubble">
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+                <div className="typing-dot"></div>
+              </div>
+            </div>
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <div className="chat-input-area">
+          <input
+            type="text"
+            className="chat-input"
+            placeholder="Type your question..."
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
+            disabled={loading}
+          />
+          <button 
+            className="chat-send-btn" 
+            onClick={sendMessage}
+            disabled={!input.trim() || loading}
+          >
+            <Send size={18} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
