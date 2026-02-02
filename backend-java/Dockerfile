@@ -8,5 +8,8 @@ RUN mvn clean package -DskipTests
 FROM openjdk:17-jdk-slim
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# No need for EXPOSE 8080, Render handles this dynamically
+
+# --- FIXED LINE BELOW ---
+# We add "-Dserver.port=${PORT}" so Spring Boot listens on the port Render gives it
+ENTRYPOINT ["java", "-Dserver.port=${PORT}", "-jar", "app.jar"]
