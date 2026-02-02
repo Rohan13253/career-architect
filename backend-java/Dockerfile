@@ -1,15 +1,16 @@
-# backend-java/Dockerfile
-FROM maven:3.8.5-openjdk-17 AS build
+# 1. Build Stage
+FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 COPY pom.xml .
 COPY src ./src
 RUN mvn clean package -DskipTests
 
-FROM openjdk:17-jdk-slim
+# 2. Run Stage
+# We use eclipse-temurin:17-jre (Java Runtime Environment)
+# because the old 'openjdk' image you used is deleted.
+FROM eclipse-temurin:17-jre
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
-# No need for EXPOSE 8080, Render handles this dynamically
 
-# --- FIXED LINE BELOW ---
-# We add "-Dserver.port=${PORT}" so Spring Boot listens on the port Render gives it
+# Render sets the PORT variable automatically
 ENTRYPOINT ["java", "-Dserver.port=${PORT}", "-jar", "app.jar"]
