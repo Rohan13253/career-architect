@@ -23,9 +23,8 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
-    // ✅ FIX: Ensure this is named 'fullName' to match the Controller's .fullName()
     @Column(name = "full_name")
-    private String fullName; 
+    private String fullName;
 
     @Column(name = "total_analyses")
     @Builder.Default
@@ -36,7 +35,9 @@ public class User {
     private Integer bestScore = 0;
 
     @CreationTimestamp
+    @Column(name = "created_at")
     private LocalDateTime createdAt;
-    
+
+    @Column(name = "last_login")
     private LocalDateTime lastLogin;
 }

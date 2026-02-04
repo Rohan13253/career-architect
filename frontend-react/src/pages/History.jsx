@@ -1,22 +1,10 @@
-// pages/History.jsx - COMPLETELY FIXED VERSION
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import {
-  ArrowLeft,
-  Calendar,
-  TrendingUp,
-  TrendingDown,
-  Target,
-  Award,
-  Trash2,
-  Eye,
-  Brain,
-  User,
-  LogOut,
-  Loader2,
-  AlertTriangle
+import { 
+  Clock, Brain, Zap, ChevronRight, ArrowLeft, 
+  Loader2, BarChart3 
 } from 'lucide-react';
-import { auth, logout } from '../firebaseConfig';
+import { auth } from '../firebaseConfig';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080/api/v1';
 
@@ -25,336 +13,144 @@ export default function History({ user }) {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showUserMenu, setShowUserMenu] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      fetchHistory();
-    }
-  }, [user]);
+    if (auth.currentUser) fetchHistory();
+  }, []);
 
   const fetchHistory = async () => {
-    setLoading(true);
-    setError(null);
-
     try {
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        throw new Error('Not authenticated');
-      }
-
-      console.log('📊 Fetching history for UID:', currentUser.uid);
-
+      setLoading(true);
       const response = await fetch(`${API_URL}/history`, {
-        method: 'GET',
-        headers: {
-          'X-Firebase-UID': currentUser.uid,
-          'Content-Type': 'application/json'
-        }
+        headers: { 'X-Firebase-UID': auth.currentUser?.uid }
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch history');
-      }
-
-      const data = await response.json();
-      console.log('✅ History loaded:', data);
+      if (!response.ok) throw new Error('Failed to retrieve history');
       
-      // ✅ FIX: Handle the response structure {total, analyses}
+      const data = await response.json();
+      
       if (data.analyses && Array.isArray(data.analyses)) {
         setHistory(data.analyses);
-      } else if (Array.isArray(data)) {
-        setHistory(data);
       } else {
         setHistory([]);
       }
-      
     } catch (err) {
-      console.error('❌ Error fetching history:', err);
+      console.error(err);
       setError(err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleViewAnalysis = (analysis) => {
-    try {
-      const fullData = JSON.parse(analysis.fullAnalysisJson);
-      sessionStorage.setItem('viewingAnalysis', JSON.stringify(fullData));
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('Error loading analysis:', err);
-      alert('Failed to load analysis details');
-    }
-  };
-
-  const handleDeleteAnalysis = async (analysisId) => {
-    if (!confirm('Are you sure you want to delete this analysis?')) return;
-
-    try {
-      const currentUser = auth.currentUser;
-      const response = await fetch(`${API_URL}/analysis/${analysisId}`, {
-        method: 'DELETE',
-        headers: {
-          'X-Firebase-UID': currentUser.uid,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        setHistory(prev => prev.filter(item => item.id !== analysisId));
-      } else {
-        alert('Failed to delete analysis');
-      }
-    } catch (err) {
-      console.error('Error deleting analysis:', err);
-      alert('Failed to delete analysis');
-    }
-  };
-
-  const handleLogout = async () => {
-    await logout();
-    navigate('/');
-  };
-
-  // Calculate statistics
   const stats = {
     total: history.length,
-    avgScore: history.length > 0 
-      ? Math.round(history.reduce((sum, item) => sum + item.overallScore, 0) / history.length)
-      : 0,
-    bestScore: history.length > 0
-      ? Math.max(...history.map(item => item.overallScore))
-      : 0,
-    recentTrend: history.length >= 2
-      ? history[0].overallScore - history[1].overallScore
-      : 0
+    avg: history.length ? Math.round(history.reduce((a, b) => a + b.overallScore, 0) / history.length) : 0,
+    best: history.length ? Math.max(...history.map(a => a.overallScore)) : 0
   };
 
+  const handleViewAnalysis = (item) => {
+    try {
+      sessionStorage.setItem('currentAnalysis', item.fullAnalysisJson);
+      navigate('/dashboard');
+    } catch (e) {
+      alert("Error loading this report.");
+    }
+  };
+
+  if (loading) return (
+    <div className="dashboard-wrapper flex-center-full">
+       <Loader2 className="spin" size={40} />
+       <p style={{marginTop: '1rem', color: '#94a3b8'}}>Loading your journey...</p>
+    </div>
+  );
+
   return (
-    <div className="history-page">
-      {/* Background effects */}
+    // ✅ FIX 1: Use dashboard-wrapper to match the main page layout
+    <div className="dashboard-wrapper">
+      
+      {/* ✅ FIX 2: Add the Background Glow Effects */}
       <div className="bg-effects">
         <div className="glow-orb glow-orb-purple" />
         <div className="glow-orb glow-orb-cyan" />
       </div>
 
-      {/* Header */}
-      <header className="dashboard-header-nav">
-        <div className="header-nav-content">
-          <div className="header-brand">
-            <button onClick={() => navigate('/dashboard')} className="btn-back-simple">
+      <div className="history-full-container">
+        {/* ✅ FIX 3: Force justify-content to start so header isn't split */}
+        <div className="results-header" style={{ marginBottom: '2rem', display:'flex', alignItems:'center', gap:'1rem', justifyContent: 'flex-start' }}>
+          <button onClick={() => navigate('/dashboard')} className="btn-icon-only">
               <ArrowLeft size={20} />
-            </button>
-            <div className="brand-icon-small">
-              <Brain size={24} />
-            </div>
-            <span className="brand-text-small">
-              Career<span className="logo-highlight">Architect</span>
-            </span>
-            <h1 className="header-title" style={{ marginLeft: '1rem', fontSize: '1.25rem' }}>
-              Analysis History
-            </h1>
-          </div>
-
-          <div className="header-actions">
-            <button onClick={() => navigate('/dashboard')} className="btn-header">
-              New Analysis
-            </button>
-
-            <div className="user-menu-wrapper">
-              <button 
-                className="user-avatar"
-                onClick={() => setShowUserMenu(!showUserMenu)}
-              >
-                {user?.photoURL ? (
-                  <img src={user.photoURL} alt="Avatar" />
-                ) : (
-                  <User size={20} />
-                )}
-              </button>
-
-              {showUserMenu && (
-                <div className="user-menu-dropdown">
-                  <div className="user-info">
-                    <p className="user-email">{user?.email}</p>
-                  </div>
-                  <button className="menu-item" onClick={() => navigate('/dashboard')}>
-                    <Brain size={16} />
-                    Dashboard
-                  </button>
-                  <button className="menu-item menu-item-danger" onClick={handleLogout}>
-                    <LogOut size={16} />
-                    Sign Out
-                  </button>
-                </div>
-              )}
-            </div>
+          </button>
+          <div>
+              <h2 className="results-title">Career Journey</h2>
+              <p className="results-subtitle">Track your progress over time</p>
           </div>
         </div>
-      </header>
 
-      <main className="history-main">
-        {/* Stats Cards */}
-        <div className="history-stats">
-          <div className="stat-card">
-            <div className="stat-icon">
-              <Target size={24} />
-            </div>
-            <div>
-              <div className="stat-value">{stats.total}</div>
-              <div className="stat-label">Total Analyses</div>
-            </div>
+        {/* STATS BANNER */}
+        <div className="score-banner-results" style={{ marginBottom: '2rem' }}>
+          <div className="info-cards-results" style={{ gridTemplateColumns: 'repeat(3, 1fr)', width: '100%', gap: '1rem' }}>
+            <StatCard label="Total Reports" value={stats.total} icon={<BarChart3 size={16} />} />
+            <StatCard label="Average Score" value={stats.avg} icon={<Zap size={16} />} />
+            <StatCard label="Best Score" value={stats.best} icon={<Brain size={16} />} />
           </div>
+        </div>
 
-          <div className="stat-card">
-            <div className="stat-icon">
-              <Award size={24} />
-            </div>
-            <div>
-              <div className="stat-value">{stats.avgScore}</div>
-              <div className="stat-label">Average Score</div>
-            </div>
+        {/* HISTORY LIST */}
+        <div className="skill-card-results has-skills" style={{ padding: '0' }}>
+          <div className="skill-card-header" style={{ padding: '1.25rem' }}>
+            <Clock className="skill-icon success" size={20} />
+            <h3 className="skill-card-title">Analysis Log</h3>
           </div>
-
-          <div className="stat-card">
-            <div className="stat-icon">
-              <TrendingUp size={24} />
-            </div>
-            <div>
-              <div className="stat-value">{stats.bestScore}</div>
-              <div className="stat-label">Best Score</div>
-            </div>
-          </div>
-
-          <div className="stat-card">
-            <div className="stat-icon">
-              {stats.recentTrend >= 0 ? <TrendingUp size={24} /> : <TrendingDown size={24} />}
-            </div>
-            <div>
-              <div className="stat-value" style={{ color: stats.recentTrend >= 0 ? '#10b981' : '#ef4444' }}>
-                {stats.recentTrend > 0 ? '+' : ''}{stats.recentTrend}
+          
+          <div className="history-list-body">
+            {history.length === 0 ? (
+              <div style={{ padding: '4rem', textAlign: 'center', color: '#64748b', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                <Clock size={48} style={{ opacity: 0.2 }} />
+                <p>No history found yet.</p>
+                <button onClick={() => navigate('/dashboard')} className="btn-view-projects">
+                  Start New Analysis
+                </button>
               </div>
-              <div className="stat-label">Recent Trend</div>
-            </div>
+            ) : (
+              history.map((item) => (
+                <div key={item.id} className="history-row-item">
+                  <div className="row-left">
+                    <div className="score-circle-mini" style={{ 
+                        borderColor: item.overallScore >= 70 ? '#10b981' : '#8b5cf6',
+                        color: item.overallScore >= 70 ? '#10b981' : 'white'
+                    }}>
+                      {item.overallScore}
+                    </div>
+                    <div>
+                      <h4 style={{ margin: '0 0 4px 0', color: '#f8fafc' }}>
+                          {item.candidateName || 'Candidate Report'}
+                      </h4>
+                      <p style={{ margin: 0, fontSize: '0.8rem', color: '#94a3b8' }}>
+                          {new Date(item.createdAt).toLocaleDateString()} • {item.resumeFilename}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <button 
+                    onClick={() => handleViewAnalysis(item)}
+                    className="btn-view-projects"
+                    style={{ fontSize: '0.8rem', padding: '0.5rem 1rem' }}
+                  >
+                    View Details <ChevronRight size={14} />
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="loading-state">
-            <Loader2 className="spin" size={48} />
-            <p>Loading your analysis history...</p>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && (
-          <div className="error-state">
-            <AlertTriangle size={48} />
-            <h3>Failed to Load History</h3>
-            <p>{error}</p>
-            <button onClick={fetchHistory} className="btn btn-primary">
-              Try Again
-            </button>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && !error && history.length === 0 && (
-          <div className="empty-state">
-            <div className="empty-icon">📊</div>
-            <h3>No Analyses Yet</h3>
-            <p>Upload your first resume to get started on your career journey!</p>
-            <button onClick={() => navigate('/dashboard')} className="btn btn-primary">
-              Start First Analysis
-            </button>
-          </div>
-        )}
-
-        {/* History List */}
-        {!loading && !error && history.length > 0 && (
-          <div className="history-list">
-            <h2 className="history-list-title">
-              Your Career Journey ({history.length} {history.length === 1 ? 'analysis' : 'analyses'})
-            </h2>
-            <div className="history-items">
-              {history.map((item, index) => (
-                <div key={item.id} className="history-item">
-                  <div className="history-item-header">
-                    <div className="history-item-date">
-                      <Calendar size={16} />
-                      {new Date(item.createdAt).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </div>
-                    <div className="history-item-actions">
-                      <button
-                        onClick={() => handleDeleteAnalysis(item.id)}
-                        className="btn-icon danger"
-                        title="Delete"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="history-item-content">
-                    <div className="history-item-score">
-                      <div
-                        className="score-circle"
-                        style={{
-                          background: `conic-gradient(
-                            ${item.overallScore >= 80 ? '#10b981' : item.overallScore >= 60 ? '#8b5cf6' : '#f59e0b'} ${item.overallScore}%,
-                            rgba(139, 92, 246, 0.1) ${item.overallScore}%
-                          )`
-                        }}
-                      >
-                        <div className="score-inner">
-                          <span className="score-value">{item.overallScore}</span>
-                          <span className="score-max">/100</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="history-item-details">
-                      <h3 className="history-item-title">
-                        {item.candidateName || `Career Analysis #${history.length - index}`}
-                      </h3>
-                      
-                      {item.jobDescription && (
-                        <p className="history-item-jd">
-                          🎯 Job-targeted analysis
-                        </p>
-                      )}
-
-                      <div className="history-item-metadata">
-                        <span className="metadata-item">
-                          ID: {item.id.substring(0, 8)}...
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="history-item-footer">
-                    <button
-                      onClick={() => handleViewAnalysis(item)}
-                      className="btn btn-outline btn-view"
-                    >
-                      <Eye size={16} />
-                      View Full Analysis
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </main>
+      </div>
     </div>
   );
 }
+
+const StatCard = ({ label, value, icon }) => (
+  <div className="info-card-results">
+    <div className="info-card-label">{icon}<span>{label}</span></div>
+    <p className="info-card-value">{value}</p>
+  </div>
+);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Brain, History as HistoryIcon, User, LogOut, PlusCircle } from 'lucide-react';
 import { auth, logout } from '../firebaseConfig';
@@ -15,18 +15,36 @@ export default function Dashboard({ user }) {
   const [currentView, setCurrentView] = useState('dashboard');
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+  // ✅ FIX: Restore analysis from session storage on load
+  // This prevents the page from going blank when coming back from History
+  useEffect(() => {
+    const savedAnalysis = sessionStorage.getItem('currentAnalysis');
+    if (savedAnalysis) {
+      try {
+        setData(JSON.parse(savedAnalysis));
+      } catch (e) {
+        console.error("Failed to restore analysis", e);
+      }
+    }
+  }, []);
+
   const handleAnalysisComplete = (result) => {
     setData(result);
     setCurrentView('dashboard');
+    // ✅ Save to session storage
+    sessionStorage.setItem('currentAnalysis', JSON.stringify(result));
   };
 
   const resetUpload = () => {
     setData(null);
     setError(null);
     setCurrentView('dashboard');
+    // ✅ Clear session storage
+    sessionStorage.removeItem('currentAnalysis');
   };
 
   const handleLogout = async () => {
+    sessionStorage.clear(); // Clear all temp data
     await logout();
     navigate('/');
   };
@@ -62,7 +80,7 @@ export default function Dashboard({ user }) {
           </div>
 
           <div className="header-actions">
-            {/* 2. New Analysis Button (Moved Here) - Only visible if we have data */}
+            {/* 2. New Analysis Button - Only visible if we have data */}
             {data && (
               <button onClick={resetUpload} className="btn-header-primary">
                 <PlusCircle size={18} /> New Analysis

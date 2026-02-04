@@ -6,5 +6,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface UserRepository extends JpaRepository<User, UUID> {
-    Optional<User> findByFirebaseUid(String firebaseUid); // Finds you by your login ID
+    // Used to link the Firebase Login to the Postgres User ID
+    Optional<User> findByFirebaseUid(String firebaseUid);
 }

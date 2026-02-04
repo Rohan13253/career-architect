@@ -7,6 +7,6 @@ import java.util.List;
 import java.util.UUID;
 
 public interface AnalysisRepository extends JpaRepository<Analysis, UUID> {
-    // This allows you to fetch ONLY your own history
+    // Fetches history for a specific user, newest first
     List<Analysis> findByUserOrderByCreatedAtDesc(User user);
 }
