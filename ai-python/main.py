@@ -63,6 +63,16 @@ def clean_json_response(text: str):
 # ENDPOINT 1: ANALYZE (Max Content Logic)
 # ============================================
 
+# Place this ABOVE your @app.post("/analyze") line
+
+@app.get("/")
+def health_check():
+    return {"status": "alive"}
+
+@app.head("/")
+def health_check_head():
+    return {"status": "alive"}
+
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...), jd: Optional[str] = Form(None)):
     
