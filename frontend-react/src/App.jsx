@@ -1,14 +1,17 @@
-// App.jsx
-// Main application entry point with routing and authentication
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { onAuthChange } from './firebaseConfig';
+
+// Pages
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
-import Dashboard from './pages/Dashboard';
-import './App.css';
+import Dashboard from './pages/Dashboard'; // The "Controller" we created
+import History from './pages/History';     // ✅ Move this file to src/pages/
 
-// Protected Route Component
+// Global Styles
+import './App.css';
+import { Loader2 } from 'lucide-react';
+
 function ProtectedRoute({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,35 +21,32 @@ function ProtectedRoute({ children }) {
       setUser(currentUser);
       setLoading(false);
     });
-
     return () => unsubscribe();
   }, []);
 
   if (loading) {
     return (
       <div className="loading-screen">
-        <div className="loader"></div>
-        <p>Loading...</p>
+        <Loader2 className="spin text-purple" size={48} />
+        <p>Loading CareerArchitect...</p>
       </div>
     );
   }
 
-  if (!user) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!user) return <Navigate to="/login" replace />;
 
-  return children;
+  // Pass user prop down to children (Dashboard/History)
+  return React.cloneElement(children, { user });
 }
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Public Routes */}
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<LoginPage />} />
         
-        {/* Protected Routes */}
+        {/* Main Dashboard (Upload & Results) */}
         <Route 
           path="/dashboard" 
           element={
@@ -56,7 +56,17 @@ function App() {
           } 
         />
 
-        {/* Catch all - redirect to home */}
+        {/* Full History Page */}
+        <Route 
+          path="/history" 
+          element={
+            <ProtectedRoute>
+              <History />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Catch-all redirect */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

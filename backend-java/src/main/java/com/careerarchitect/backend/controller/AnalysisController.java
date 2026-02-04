@@ -1,6 +1,11 @@
 package com.careerarchitect.backend.controller;
 
 import com.careerarchitect.backend.dto.ErrorResponse;
+import com.careerarchitect.model.Analysis;
+import com.careerarchitect.model.User;
+import com.careerarchitect.repository.AnalysisRepository;
+import com.careerarchitect.repository.UserRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ByteArrayResource;
@@ -8,255 +13,186 @@ import org.springframework.http.*;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.HttpServerErrorException;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.util.*;
 
-/**
- * Analysis Controller (PRODUCTION VERSION)
- * 
- * Updated to support Job Description (JD) Gap Analysis
- * 
- * Handles resume analysis requests by acting as a gateway between
- * the React frontend and Python AI service.
- * 
- * NEW: Accepts optional Job Description parameter for targeted analysis
- * 
- * @author CareerArchitect Team
- * @version 2.0.0
- */
 @Slf4j
 @RestController
 @RequestMapping("/api/v1")
 public class AnalysisController {
 
     private final RestTemplate restTemplate;
-    
+    private final AnalysisRepository analysisRepository;
+    private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
+
     @Value("${ai.service.url:http://localhost:5001}")
     private String aiServiceUrl;
-    
-    @Value("${ai.service.timeout:30000}")
-    private int aiServiceTimeout;
 
-    public AnalysisController(RestTemplate restTemplate) {
+    public AnalysisController(
+            RestTemplate restTemplate,
+            AnalysisRepository analysisRepository,
+            UserRepository userRepository,
+            ObjectMapper objectMapper
+    ) {
         this.restTemplate = restTemplate;
+        this.analysisRepository = analysisRepository;
+        this.userRepository = userRepository;
+        this.objectMapper = objectMapper;
     }
 
-    /**
-     * Analyze Resume Endpoint (UPDATED FOR JD SUPPORT)
-     * 
-     * Accepts a PDF resume file and optional Job Description text
-     * Returns AI-powered career analysis
-     * 
-     * @param file PDF resume file (required)
-     * @param jd Job Description text (optional)
-     * @return Analysis results in JSON format
-     */
+    // ========================= ANALYZE =========================
+
     @PostMapping("/analyze")
     public ResponseEntity<?> analyzeResume(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "jd", required = false) String jd) {
-        
-        log.info("=== Resume Analysis Request Received ===");
-        log.info("JD Provided: {}", jd != null ? "YES (" + jd.length() + " chars)" : "NO");
-        
-        // === VALIDATION: Check if file exists ===
+            @RequestParam(value = "jd", required = false) String jd,
+            @RequestHeader(value = "X-Firebase-UID", required = false) String firebaseUid,
+            @RequestHeader(value = "X-User-Email", required = false) String email
+    ) {
+        log.info("Firebase UID: {}", firebaseUid);
+
         if (file == null || file.isEmpty()) {
-            log.warn("Empty file received in request");
-            return ResponseEntity
-                    .badRequest()
-                    .body(ErrorResponse.of("File is empty or missing"));
+            return ResponseEntity.badRequest().body(ErrorResponse.of("File is empty"));
         }
-
-        // === VALIDATION: Check file type ===
-        String filename = file.getOriginalFilename();
-        if (filename == null || !filename.toLowerCase().endsWith(".pdf")) {
-            log.warn("Non-PDF file uploaded: {}", filename);
-            return ResponseEntity
-                    .badRequest()
-                    .body(ErrorResponse.of("Only PDF files are supported"));
-        }
-
-        // === VALIDATION: Check file size (10MB limit) ===
-        long fileSizeKB = file.getSize() / 1024;
-        if (file.getSize() > 10 * 1024 * 1024) { // 10MB
-            log.warn("File too large: {}KB", fileSizeKB);
-            return ResponseEntity
-                    .badRequest()
-                    .body(ErrorResponse.of("File size exceeds 10MB limit"));
-        }
-
-        log.info("File validated: {} ({}KB)", filename, fileSizeKB);
 
         try {
-            // === PREPARE MULTIPART REQUEST WITH OPTIONAL JD ===
+            // ---------- USER ----------
+            User user = null;
+            if (firebaseUid != null && !firebaseUid.isBlank()) {
+                user = userRepository.findByFirebaseUid(firebaseUid)
+                        .orElseGet(() -> userRepository.save(
+                                User.builder()
+                                        .firebaseUid(firebaseUid)
+                                        .email(email != null ? email : "unknown@example.com")
+                                        .fullName(extractNameFromEmail(email))
+                                        .lastLogin(LocalDateTime.now())
+                                        .build()
+                        ));
+
+                user.setLastLogin(LocalDateTime.now());
+                userRepository.save(user);
+            }
+
+            // ---------- AI SERVICE ----------
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-            
-            // Add file
             body.add("file", new ByteArrayResource(file.getBytes()) {
                 @Override
                 public String getFilename() {
                     return file.getOriginalFilename();
                 }
             });
-            
-            // Add Job Description if provided
-            if (jd != null && !jd.trim().isEmpty()) {
+
+            if (jd != null && !jd.isBlank()) {
                 body.add("jd", jd.trim());
-                log.info("Including Job Description in request ({} chars)", jd.length());
             }
 
-            HttpEntity<MultiValueMap<String, Object>> requestEntity = 
-                new HttpEntity<>(body, headers);
-
-            // === FORWARD TO PYTHON AI SERVICE ===
-            String aiEndpoint = aiServiceUrl + "/analyze";
-            log.info("Forwarding to AI Service: {}", aiEndpoint);
-            
-            ResponseEntity<Map> response = restTemplate.exchange(
-                    aiEndpoint,
+            ResponseEntity<Map> aiResponse = restTemplate.exchange(
+                    aiServiceUrl + "/analyze",
                     HttpMethod.POST,
-                    requestEntity,
+                    new HttpEntity<>(body, headers),
                     Map.class
             );
 
-            log.info("AI Service responded: {} - Status: {}", 
-                response.getBody() != null ? "Success" : "Empty",
-                response.getStatusCode()
-            );
-            
-            // Add analysis mode to response metadata
-            Map<String, Object> responseBody = response.getBody();
-            if (responseBody != null && jd != null) {
-                responseBody.put("jd_analysis", true);
+            Map<String, Object> aiResult = aiResponse.getBody();
+            if (aiResult == null) {
+                return ResponseEntity.status(500)
+                        .body(ErrorResponse.of("AI returned empty response"));
             }
-            
-            return ResponseEntity.ok(responseBody);
 
-        } catch (ResourceAccessException e) {
-            // === ERROR: AI Service is not reachable ===
-            log.error("AI Service is unavailable: {}", e.getMessage());
-            return ResponseEntity
-                    .status(HttpStatus.SERVICE_UNAVAILABLE)
-                    .body(ErrorResponse.of(
-                        "AI Service Unavailable",
-                        "Cannot connect to Python AI service. Please ensure it is running on port 5001.",
-                        "/api/v1/analyze"
-                    ));
-                    
-        } catch (HttpClientErrorException e) {
-            // === ERROR: 4xx error from AI Service ===
-            log.error("AI Service returned client error: {} - {}", 
-                e.getStatusCode(), e.getMessage());
-            return ResponseEntity
-                    .status(e.getStatusCode())
-                    .body(ErrorResponse.of(
-                        "AI Service Error",
-                        e.getResponseBodyAsString(),
-                        "/api/v1/analyze"
-                    ));
-                    
-        } catch (HttpServerErrorException e) {
-            // === ERROR: 5xx error from AI Service ===
-            log.error("AI Service internal error: {} - {}", 
-                e.getStatusCode(), e.getMessage());
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ErrorResponse.of(
-                        "AI Service Internal Error",
-                        "The AI service encountered an error while processing your request.",
-                        "/api/v1/analyze"
-                    ));
-                    
-        } catch (IOException e) {
-            // === ERROR: File reading error ===
-            log.error("Error reading file: {}", e.getMessage());
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ErrorResponse.of(
-                        "File Processing Error",
-                        e.getMessage(),
-                        "/api/v1/analyze"
-                    ));
-                    
+            // ---------- PARSE ----------
+            int score = 0;
+            String candidateName = "Unknown";
+
+            if (aiResult.get("candidate_profile") instanceof Map profile) {
+                Object s = profile.get("total_score");
+                if (s instanceof Number n) score = n.intValue();
+
+                Object nObj = profile.get("name");
+                if (nObj != null) candidateName = nObj.toString();
+            }
+
+            // ---------- SAVE ----------
+            Analysis.AnalysisBuilder builder = Analysis.builder()
+                    .resumeFilename(file.getOriginalFilename())
+                    .jobDescription(jd)
+                    .candidateName(candidateName)
+                    .overallScore(score)
+                    .fullAnalysisJson(objectMapper.writeValueAsString(aiResult))
+                    .analysisVersion("v18.0")
+                    .aiModel("llama-3.3-70b");
+
+            if (user != null) builder.user(user);
+
+            Analysis saved = analysisRepository.save(builder.build());
+
+            if (user != null) {
+                user.setTotalAnalyses(user.getTotalAnalyses() + 1);
+                user.setBestScore(Math.max(user.getBestScore(), score));
+                userRepository.save(user);
+            }
+
+            aiResult.put("analysis_id", saved.getId().toString());
+            aiResult.put("saved_to_database", true);
+
+            return ResponseEntity.ok(aiResult);
+
         } catch (Exception e) {
-            // === ERROR: Unexpected error ===
-            log.error("Unexpected error during analysis", e);
-            return ResponseEntity
-                    .status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ErrorResponse.of(
-                        "Internal Server Error",
-                        "An unexpected error occurred. Please try again.",
-                        "/api/v1/analyze"
-                    ));
+            log.error("Analysis error", e);
+            return ResponseEntity.status(500)
+                    .body(ErrorResponse.of("Server error", e.getMessage(), "/api/v1/analyze"));
         }
     }
 
-    /**
-     * Health Check Endpoint
-     * 
-     * @return Service health status
-     */
-    @GetMapping("/health")
-    public ResponseEntity<Map<String, Object>> healthCheck() {
-        Map<String, Object> health = new HashMap<>();
-        health.put("status", "healthy");
-        health.put("service", "Backend Gateway");
-        health.put("version", "2.0.0");
-        health.put("port", 8080);
-        
-        // Check AI Service connectivity
-        try {
-            ResponseEntity<Map> aiHealth = restTemplate.getForEntity(
-                aiServiceUrl + "/health", 
-                Map.class
-            );
-            
-            Map<String, Object> aiHealthData = aiHealth.getBody();
-            if (aiHealthData != null) {
-                health.put("ai_service", "connected");
-                health.put("ai_version", aiHealthData.get("version"));
-                health.put("ai_gemini_enabled", aiHealthData.get("gemini_api"));
-            } else {
-                health.put("ai_service", "connected");
-            }
-        } catch (Exception e) {
-            health.put("ai_service", "disconnected");
-            log.warn("AI Service health check failed: {}", e.getMessage());
-        }
-        
-        return ResponseEntity.ok(health);
+    // ========================= HISTORY =========================
+
+    @GetMapping("/history")
+    public ResponseEntity<?> history(
+            @RequestHeader("X-Firebase-UID") String firebaseUid
+    ) {
+        User user = userRepository.findByFirebaseUid(firebaseUid)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        List<Analysis> list = analysisRepository.findByUserOrderByCreatedAtDesc(user);
+
+        return ResponseEntity.ok(Map.of(
+                "total", list.size(),
+                "analyses", list
+        ));
     }
 
-    /**
-     * Root Endpoint - API Information
-     */
-    @GetMapping("/")
-    public ResponseEntity<Map<String, Object>> apiInfo() {
-        Map<String, Object> info = new HashMap<>();
-        info.put("service", "CareerArchitect Backend Gateway");
-        info.put("version", "2.0.0");
-        info.put("port", 8080);
-        info.put("features", new String[]{
-            "Resume Analysis",
-            "Job Description Gap Analysis",
-            "Gemini AI Integration"
-        });
-        
-        Map<String, String> endpoints = new HashMap<>();
-        endpoints.put("analyze", "POST /api/v1/analyze?file=<pdf>&jd=<optional>");
-        endpoints.put("health", "GET /api/v1/health");
-        info.put("endpoints", endpoints);
-        
-        return ResponseEntity.ok(info);
+    // ========================= DELETE =========================
+
+    @DeleteMapping("/analysis/{id}")
+    public ResponseEntity<?> delete(
+            @PathVariable UUID id,
+            @RequestHeader("X-Firebase-UID") String firebaseUid
+    ) {
+        Analysis analysis = analysisRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Analysis not found"));
+
+        if (analysis.getUser() == null ||
+                !analysis.getUser().getFirebaseUid().equals(firebaseUid)) {
+            return ResponseEntity.status(403)
+                    .body(ErrorResponse.of("Access denied"));
+        }
+
+        analysisRepository.delete(analysis);
+
+        return ResponseEntity.ok(Map.of("success", true));
+    }
+
+    // ========================= HELPERS =========================
+
+    private String extractNameFromEmail(String email) {
+        if (email == null) return "User";
+        String name = email.split("@")[0];
+        return name.substring(0, 1).toUpperCase() + name.substring(1);
     }
 }
