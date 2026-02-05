@@ -44,7 +44,7 @@ public class AnalysisController {
         this.objectMapper = objectMapper;
     }
 
-    // ========================= ANALYZE =========================
+    // ========================= ANALYZE RESUME =========================
 
     @PostMapping("/analyze")
     public ResponseEntity<?> analyzeResume(
@@ -53,14 +53,40 @@ public class AnalysisController {
             @RequestHeader(value = "X-Firebase-UID", required = false) String firebaseUid,
             @RequestHeader(value = "X-User-Email", required = false) String email
     ) {
-        log.info("Firebase UID: {}", firebaseUid);
+        // Calls the helper with RESUME type
+        return processAnalysis(file, jd, firebaseUid, email, "/analyze", "RESUME");
+    }
+
+    // ========================= ANALYZE LINKEDIN (NEW) =========================
+
+    @PostMapping("/analyze-linkedin")
+    public ResponseEntity<?> analyzeLinkedin(
+            @RequestParam("file") MultipartFile file,
+            @RequestHeader(value = "X-Firebase-UID", required = false) String firebaseUid,
+            @RequestHeader(value = "X-User-Email", required = false) String email
+    ) {
+        // Calls the helper with LINKEDIN type (No JD needed)
+        return processAnalysis(file, null, firebaseUid, email, "/analyze-linkedin", "LINKEDIN");
+    }
+
+    // ========================= SHARED LOGIC (THE ENGINE) =========================
+    
+    private ResponseEntity<?> processAnalysis(
+            MultipartFile file, 
+            String jd, 
+            String firebaseUid, 
+            String email, 
+            String aiEndpoint, 
+            String type
+    ) {
+        log.info("Processing {} Analysis for UID: {}", type, firebaseUid);
 
         if (file == null || file.isEmpty()) {
             return ResponseEntity.badRequest().body(ErrorResponse.of("File is empty"));
         }
 
         try {
-            // ---------- USER ----------
+            // 1. GET OR CREATE USER
             User user = null;
             if (firebaseUid != null && !firebaseUid.isBlank()) {
                 user = userRepository.findByFirebaseUid(firebaseUid)
@@ -72,29 +98,27 @@ public class AnalysisController {
                                         .lastLogin(LocalDateTime.now())
                                         .build()
                         ));
-
                 user.setLastLogin(LocalDateTime.now());
                 userRepository.save(user);
             }
 
-            // ---------- AI SERVICE ----------
+            // 2. PREPARE AI REQUEST
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.MULTIPART_FORM_DATA);
 
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
             body.add("file", new ByteArrayResource(file.getBytes()) {
                 @Override
-                public String getFilename() {
-                    return file.getOriginalFilename();
-                }
+                public String getFilename() { return file.getOriginalFilename(); }
             });
 
             if (jd != null && !jd.isBlank()) {
                 body.add("jd", jd.trim());
             }
 
+            // 3. CALL PYTHON AI SERVICE
             ResponseEntity<Map> aiResponse = restTemplate.exchange(
-                    aiServiceUrl + "/analyze",
+                    aiServiceUrl + aiEndpoint, // Calls either /analyze or /analyze-linkedin
                     HttpMethod.POST,
                     new HttpEntity<>(body, headers),
                     Map.class
@@ -102,43 +126,52 @@ public class AnalysisController {
 
             Map<String, Object> aiResult = aiResponse.getBody();
             if (aiResult == null) {
-                return ResponseEntity.status(500)
-                        .body(ErrorResponse.of("AI returned empty response"));
+                return ResponseEntity.status(500).body(ErrorResponse.of("AI returned empty response"));
             }
 
-            // ---------- PARSE ----------
+            // 4. PARSE SCORES (Works for both Resume & LinkedIn JSON structures)
             int score = 0;
             String candidateName = "Unknown";
-
+            
+            // Try to find score in "candidate_profile" (Resume) OR top-level "overall_score" (LinkedIn)
             if (aiResult.get("candidate_profile") instanceof Map profile) {
-                Object s = profile.get("total_score");
-                if (s instanceof Number n) score = n.intValue();
-
                 Object nObj = profile.get("name");
                 if (nObj != null) candidateName = nObj.toString();
+                
+                Object s = profile.get("total_score");
+                if (s instanceof Number n) score = n.intValue();
+            }
+            
+            // Fallback for LinkedIn specific score location
+            if (aiResult.containsKey("overall_score") && aiResult.get("overall_score") instanceof Number n) {
+                score = n.intValue();
             }
 
-            // ---------- SAVE ----------
+            // 5. SAVE TO DATABASE
             Analysis.AnalysisBuilder builder = Analysis.builder()
                     .resumeFilename(file.getOriginalFilename())
                     .jobDescription(jd)
                     .candidateName(candidateName)
                     .overallScore(score)
                     .fullAnalysisJson(objectMapper.writeValueAsString(aiResult))
-                    .analysisVersion("v18.0")
-                    .aiModel("llama-3.3-70b");
+                    .analysisVersion("v19.0")
+                    .aiModel("llama-3.3-70b")
+                    .analysisType(type); // ✅ Saves "RESUME" or "LINKEDIN"
 
             if (user != null) builder.user(user);
-
             Analysis saved = analysisRepository.save(builder.build());
 
+            // 6. UPDATE USER STATS
             if (user != null) {
                 user.setTotalAnalyses(user.getTotalAnalyses() + 1);
+                // We keep "Best Score" as the max of any analysis for now
                 user.setBestScore(Math.max(user.getBestScore(), score));
                 userRepository.save(user);
             }
 
+            // 7. RETURN RESPONSE
             aiResult.put("analysis_id", saved.getId().toString());
+            aiResult.put("analysis_type", type);
             aiResult.put("saved_to_database", true);
 
             return ResponseEntity.ok(aiResult);
@@ -146,7 +179,7 @@ public class AnalysisController {
         } catch (Exception e) {
             log.error("Analysis error", e);
             return ResponseEntity.status(500)
-                    .body(ErrorResponse.of("Server error", e.getMessage(), "/api/v1/analyze"));
+                    .body(ErrorResponse.of("Server error", e.getMessage(), "/api/v1/" + type.toLowerCase()));
         }
     }
 

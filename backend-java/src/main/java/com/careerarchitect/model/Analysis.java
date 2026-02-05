@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
-import com.fasterxml.jackson.annotation.JsonIgnore; // 👈 1. ADD THIS IMPORT
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -22,7 +22,7 @@ public class Analysis {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    @JsonIgnore // 👈 2. ADD THIS ANNOTATION
+    @JsonIgnore
     private User user; 
 
     @Column(name = "candidate_name")
@@ -46,6 +46,10 @@ public class Analysis {
 
     @Column(name = "ai_model")
     private String aiModel;
+
+    // ✅ CRITICAL NEW FIELD: Distinguishes "RESUME" vs "LINKEDIN"
+    @Column(name = "analysis_type")
+    private String analysisType;
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
