@@ -20,9 +20,9 @@ from groq import Groq
 load_dotenv()
 
 # Three separate Groq API keys
-GROQ_ANALYSIS_KEY = os.getenv("GROQ_ANALYSIS_KEY")
-GROQ_LINKEDIN_KEY = os.getenv("GROQ_LINKEDIN_KEY")
-GROQ_CHAT_KEY = os.getenv("GROQ_CHAT_KEY")
+GROQ_ANALYSIS_KEY = os.getenv("GROQ_ANALYSIS_KEY") or os.getenv("GROQ_API_KEY")
+GROQ_LINKEDIN_KEY = os.getenv("GROQ_LINKEDIN_KEY") or os.getenv("GROQ_API_KEY")
+GROQ_CHAT_KEY = os.getenv("GROQ_CHAT_KEY") or os.getenv("GROQ_API_KEY")
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -83,35 +83,22 @@ def is_custom_linkedin_url(url: str) -> bool:
     """Check if LinkedIn URL is customized"""
     if not url:
         return False
+    # Custom URLs don't have numbers at the end
     return not bool(re.search(r'\d{5,}', url))
 
 def extract_email(text: str) -> str:
     """Extract email from text"""
-    pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'
+    pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
     match = re.search(pattern, text)
     return match.group(0) if match else ""
 
 def is_professional_email(email: str) -> bool:
+    """Check if email is professional (not generic providers)"""
     if not email:
         return False
-
-    generic_providers = [
-        'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'rediffmail.com'
-    ]
-
+    generic_providers = ['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'rediffmail.com']
     domain = email.split('@')[-1].lower()
-
-    if domain in generic_providers:
-        return False
-
-    professional_tlds = [
-        '.work', '.tech', '.dev', '.io', '.ai', '.co', '.me', '.in', '.app'
-    ]
-
-    if any(domain.endswith(tld) for tld in professional_tlds):
-        return True
-
-    return True
+    return domain not in generic_providers
 
 def extract_github_link(text: str) -> str:
     """Extract GitHub URL from text"""
@@ -157,24 +144,24 @@ async def analyze_resume(file: UploadFile = File(...), jd: Optional[str] = Form(
         client = Groq(api_key=GROQ_ANALYSIS_KEY)
         
         prompt = """
-       You are a Senior Engineering Mentor. Analyze this resume with high attention to detail.
-       
-        1. *MAXIMUM SKILL DETECTION:*
+        You are a Senior Engineering Mentor. Analyze this resume with high attention to detail.
+        
+        1. **MAXIMUM SKILL DETECTION:**
            - Extract EVERY technical keyword found (Languages, Frameworks, Libraries, Tools, Databases).
            - Look inside project descriptions (e.g., if they mention "JUnit", add it).
            - Do not ignore "secondary" skills like Git, Jira, or Postman; include them!
 
-        2. *MISSING SKILLS (Growth Plan):*
-           - Identify at least *4 to 6* critical skills they need to acquire to reach the next level.
+        2. **MISSING SKILLS (Growth Plan):**
+           - Identify at least **4 to 6** critical skills they need to acquire to reach the next level.
            - Focus on modern industry standards (e.g., if they know Java, suggest Spring Cloud, Docker, Kubernetes, AWS).
 
-        3. *DYNAMIC RADAR CHART:*
+        3. **DYNAMIC RADAR CHART:**
            - Generate 5 axes relevant to the candidate's specific domain (e.g., if Embedded -> "Low Level", if Web -> "Frontend").
            - Always include "Problem Solving".
 
-        4. *DETAILED PROJECTS (3 Total):*
-           - *Description:* Must be 3-4 sentences long. Explain the technical "How", the business "Why", and the complexity.
-           - *Questions:* Generate *8* scenario-based interview questions per project.
+        4. **DETAILED PROJECTS (3 Total):**
+           - **Description:** Must be 3-4 sentences long. Explain the technical "How", the business "Why", and the complexity.
+           - **Questions:** Generate **8** scenario-based interview questions per project.
 
         REQUIRED JSON STRUCTURE:
         {
@@ -269,35 +256,90 @@ async def analyze_linkedin(file: UploadFile = File(...)):
         if not text:
             return JSONResponse(status_code=400, content={"status": "error", "message": "Empty or unreadable LinkedIn PDF"})
 
-        # PRE-EXTRACTED REAL VALUES
+        # Pre-extract some data for better analysis
         linkedin_url = extract_linkedin_url(text)
         is_custom_url = is_custom_linkedin_url(linkedin_url)
-
         email = extract_email(text)
-        safe_email = email if email else "Not found"
         is_prof_email = is_professional_email(email)
-
         github_url = extract_github_link(text)
-
+        
         client = Groq(api_key=GROQ_LINKEDIN_KEY)
         
-        # ⭐ Inject REAL EMAIL and URL values directly into the structured logic
         prompt = f"""
         You are a LinkedIn Profile Optimization Expert and Career Coach. Analyze this LinkedIn profile PDF with extreme attention to professional branding details.
 
-        **Pre-detected Information (use exactly as provided):**
+        **CRITICAL INSTRUCTION - Email Field:**
+        - The actual email found in the profile is: "{email or 'Not found'}"
+        - You MUST use this exact email address in the "current" field of professional_email
+        - DO NOT write descriptions like "Using generic email (gmail)" or "Professional email"
+        - Write the ACTUAL email address: "{email or 'Not found'}"
+
+        **Pre-detected Information:**
         - LinkedIn URL: {linkedin_url or "Not found"}
         - Is Custom URL: {is_custom_url}
-        - Email: {safe_email}
-        - Is Professional Email: {is_prof_email}
+        - Email Address: {email or "Not found"}
+        - Is Professional Email Domain: {is_prof_email}
         - GitHub Link: {github_url or "Not found"}
 
-        **Important:**
-        - DO NOT replace the email with descriptions like 'generic email' or 'custom domain email'.
-        - Use the ACTUAL email `{safe_email}` inside the JSON field `"current"` for professional_email.
-        - `"is_generic"` must be {str(not is_prof_email).lower()}.
+        **Your Task:** Provide a comprehensive professional brand audit with scores out of 10 for each category.
 
-        **Your Task:** Provide a complete LinkedIn professional audit.
+        **Analysis Categories:**
+
+        1. **Custom LinkedIn URL** (Score /10)
+           - Current state: Use the actual URL "{linkedin_url or 'Not found'}"
+           - Check if URL is customized (no random numbers)
+           - Specific recommendation with example
+
+        2. **GitHub Profile Link** (Score /10)
+           - Current state: "{github_url or 'Not found'}"
+           - Is GitHub link present in contact info or featured section?
+           - Recommendation on how to add it if missing
+
+        3. **Professional Email** (Score /10)
+           - Current state: MUST be the actual email "{email or 'Not found'}"
+           - Is it professional (custom domain) or generic (gmail/yahoo)?
+           - Recommendation for improvement if needed
+
+        4. **Profile Header/Headline** (Score /10)
+           - Analyze the headline for clarity, keywords, and value proposition
+           - Does it clearly state role + specialization?
+           - Provide optimized version
+
+        5. **Summary/About Section** (Score /10)
+           - Is it compelling, keyword-rich, and story-driven?
+           - Length appropriate (3-5 paragraphs)?
+           - First-person narrative?
+           - Provide improvement suggestions
+
+        6. **Education Section** (Score /10)
+           - Are all degrees listed with dates?
+           - Activities/honors mentioned?
+           - Recommendations for completion
+
+        7. **Certifications** (Score /10)
+           - Are relevant certifications listed?
+           - Are they current?
+           - Suggestions for valuable certs to add
+
+        8. **Skills & Endorsements** (Score /10)
+           - Top 3 skills aligned with career goals?
+           - At least 5-10 skills listed?
+           - Recommendations for skill additions
+
+        **Scoring Guidelines:**
+        - 9-10: Excellent, professional standard
+        - 7-8: Good, minor improvements needed
+        - 5-6: Needs work, several issues
+        - 3-4: Poor, major gaps
+        - 1-2: Critical issues, immediate attention required
+
+        **Calculate Overall Scores:**
+        - Overall Score: Average of all 8 categories (round to 1 decimal)
+        - Professionalism Score: Average of Custom URL, Professional Email, Profile Header (round to 1 decimal)
+        - Completeness Score: Average of Education, Certifications, Skills (round to 1 decimal)
+        - Optimization Score: Average of Summary, GitHub Link, Skills (round to 1 decimal)
+
+        **Priority Actions:** List 3-5 highest-impact action items with specific instructions.
 
         REQUIRED JSON STRUCTURE:
         {{
@@ -306,74 +348,69 @@ async def analyze_linkedin(file: UploadFile = File(...)):
           "professionalism_score": 8.2,
           "completeness_score": 6.5,
           "optimization_score": 7.8,
-
           "custom_url": {{
             "status": "excellent" | "good" | "needs_improvement" | "poor",
             "score": 8,
             "current": "{linkedin_url or 'Not found'}",
             "recommendation": "Specific actionable recommendation with example"
           }},
-
           "github_link": {{
             "status": "excellent" | "good" | "needs_improvement" | "poor",
             "score": 6,
             "current": "{github_url or 'Not found'}",
-            "recommendation": "Add GitHub link to Featured or Contact Info section"
+            "recommendation": "Add GitHub link to Featured section or Contact Info. Example: github.com/yourhandle"
           }},
-
           "professional_email": {{
             "status": "excellent" | "good" | "needs_improvement" | "poor",
             "score": 5,
-            "current": "{safe_email}",
-            "is_generic": {str(not is_prof_email).lower()},
-            "recommendation": "If this email is generic, consider using firstname.lastname@customdomain.com for stronger branding."
+            "current": "{email or 'Not found'}",
+            "recommendation": "Consider using firstname.lastname@customdomain.com for professional branding" | "Email looks professional, keep it!"
           }},
-
           "profile_header": {{
             "status": "excellent" | "good" | "needs_improvement" | "poor",
             "score": 7,
-            "current": "Current headline text",
-            "recommendation": "Optimized version of the headline with role + keywords"
+            "current": "Current headline text from profile",
+            "recommendation": "Optimize to: 'Role | Specialization | Value Proposition' - Example: 'Full Stack Developer | React & Node.js Specialist | Building Scalable Web Applications'"
           }},
-
           "summary": {{
             "status": "excellent" | "good" | "needs_improvement" | "poor",
             "score": 6,
-            "current": "Summary evaluation",
-            "recommendation": "Detailed improvements"
+            "current": "Brief assessment of current summary (length, tone, keywords)",
+            "recommendation": "Expand to 3-5 paragraphs covering: 1) Who you are professionally, 2) Key achievements & skills, 3) What you're passionate about, 4) Call to action. Use first-person narrative and include keywords for SEO."
           }},
-
           "education": {{
             "status": "excellent" | "good" | "needs_improvement" | "poor",
             "score": 8,
-            "current": "Education details",
-            "recommendation": "Improvements"
+            "current": "Assessment of education section completeness",
+            "recommendation": "Ensure all degrees list: Institution, Degree type, Major, Dates (start-end), GPA (if strong), Activities/Honors"
           }},
-
           "certifications": {{
             "status": "excellent" | "good" | "needs_improvement" | "poor",
             "score": 4,
-            "current": "Cert details",
-            "recommendation": "Certs to add"
+            "current": "X certifications found" | "No certifications listed",
+            "recommendation": "Add relevant certifications like AWS, Azure, Coursera courses, or industry-specific credentials. Include expiry dates if applicable."
           }},
-
           "skills_section": {{
             "status": "excellent" | "good" | "needs_improvement" | "poor",
             "score": 7,
-            "current": "Skill list summary",
-            "recommendation": "Skill additions"
+            "current": "X skills listed, top 3 are: skill1, skill2, skill3",
+            "recommendation": "Ensure top 3 skills match your target role. Add 5-10 more relevant skills. Ask colleagues for endorsements."
           }},
-
           "priority_actions": [
             {{
               "title": "Customize Your LinkedIn URL",
-              "description": "How to fix",
+              "description": "Go to Settings > Edit Public Profile > Edit your custom URL. Change from linkedin.com/in/john-doe-123456 to linkedin.com/in/johndoe",
               "impact": "High"
             }},
             {{
-              "title": "Add GitHub to Featured",
-              "description": "How to add",
+              "title": "Add GitHub to Featured Section",
+              "description": "Click 'Add profile section' > Featured > Add link to your GitHub profile with a professional description of your best projects",
               "impact": "Critical"
+            }},
+            {{
+              "title": "Rewrite Your Headline",
+              "description": "Change from generic title to value-driven headline: 'Software Engineer' → 'Full Stack Developer | React & Python | Building AI-Powered Web Apps'",
+              "impact": "High"
             }}
           ]
         }}
@@ -386,17 +423,17 @@ async def analyze_linkedin(file: UploadFile = File(...)):
         completion = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a LinkedIn Branding Expert. Output strictly valid JSON."},
+                {"role": "system", "content": "You are a LinkedIn Career Coach and Branding Expert. Provide detailed, actionable feedback. Output valid JSON. ALWAYS use the actual email address in the 'current' field, never write descriptions."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.15,
-            max_tokens=6000,
+            temperature=0.2, 
+            max_tokens=6000, 
             response_format={"type": "json_object"}
         )
-
+        
         raw_response = completion.choices[0].message.content
         result = clean_json_response(raw_response)
-
+        
         logger.info("✅ LinkedIn Analysis Complete")
         return JSONResponse(content=result)
 
@@ -450,6 +487,6 @@ if __name__ == "__main__":
     print(f"   - Resume Analysis: {'✓' if GROQ_ANALYSIS_KEY else '✗'}")
     print(f"   - LinkedIn Analysis: {'✓' if GROQ_LINKEDIN_KEY else '✗'}")
     print(f"   - Chat Service: {'✓' if GROQ_CHAT_KEY else '✗'}")
-    print("\n🚀 Server starting on [http://0.0.0.0:5001](http://0.0.0.0:5001)\n")
+    print("\n🚀 Server starting on http://0.0.0.0:5001\n")
     
     uvicorn.run(app, host="0.0.0.0", port=5001)
