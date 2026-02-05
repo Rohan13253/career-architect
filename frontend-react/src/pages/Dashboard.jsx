@@ -4,60 +4,97 @@ import { Brain, History as HistoryIcon, User, LogOut, PlusCircle } from 'lucide-
 import { auth, logout } from '../firebaseConfig';
 import UploadView from '../components/UploadView';
 import ResultsView from '../components/ResultsView';
+import LinkedInResultsView from '../components/LinkedInResultsView';
 import ProjectsView from '../components/ProjectsView';
 import FloatingChat from '../components/FloatingChat';
 
 export default function Dashboard({ user }) {
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
+  const [resumeData, setResumeData] = useState(null);
+  const [linkedinData, setLinkedinData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [currentView, setCurrentView] = useState('dashboard');
+  const [currentView, setCurrentView] = useState('upload'); // 'upload', 'resume', 'linkedin', 'projects'
   const [showUserMenu, setShowUserMenu] = useState(false);
 
-  // ✅ FIX: Restore analysis from session storage on load
-  // This prevents the page from going blank when coming back from History
+  // Restore analysis from session storage on load
   useEffect(() => {
-    const savedAnalysis = sessionStorage.getItem('currentAnalysis');
-    if (savedAnalysis) {
+    const savedResumeAnalysis = sessionStorage.getItem('currentResumeAnalysis');
+    const savedLinkedInAnalysis = sessionStorage.getItem('currentLinkedInAnalysis');
+    const savedView = sessionStorage.getItem('currentView');
+    
+    if (savedResumeAnalysis) {
       try {
-        setData(JSON.parse(savedAnalysis));
+        setResumeData(JSON.parse(savedResumeAnalysis));
+        if (savedView === 'resume' || savedView === 'projects') {
+          setCurrentView(savedView);
+        }
       } catch (e) {
-        console.error("Failed to restore analysis", e);
+        console.error("Failed to restore resume analysis", e);
+      }
+    }
+    
+    if (savedLinkedInAnalysis) {
+      try {
+        setLinkedinData(JSON.parse(savedLinkedInAnalysis));
+        if (savedView === 'linkedin') {
+          setCurrentView('linkedin');
+        }
+      } catch (e) {
+        console.error("Failed to restore LinkedIn analysis", e);
       }
     }
   }, []);
 
-  const handleAnalysisComplete = (result) => {
-    setData(result);
-    setCurrentView('dashboard');
-    // ✅ Save to session storage
-    sessionStorage.setItem('currentAnalysis', JSON.stringify(result));
+  const handleResumeAnalysisComplete = (result) => {
+    setResumeData(result);
+    setCurrentView('resume');
+    sessionStorage.setItem('currentResumeAnalysis', JSON.stringify(result));
+    sessionStorage.setItem('currentView', 'resume');
   };
 
-  const resetUpload = () => {
-    setData(null);
+  const handleLinkedInAnalysisComplete = (result) => {
+    setLinkedinData(result);
+    setCurrentView('linkedin');
+    sessionStorage.setItem('currentLinkedInAnalysis', JSON.stringify(result));
+    sessionStorage.setItem('currentView', 'linkedin');
+  };
+
+  const resetToUpload = () => {
+    setResumeData(null);
+    setLinkedinData(null);
     setError(null);
-    setCurrentView('dashboard');
-    // ✅ Clear session storage
-    sessionStorage.removeItem('currentAnalysis');
+    setCurrentView('upload');
+    sessionStorage.removeItem('currentResumeAnalysis');
+    sessionStorage.removeItem('currentLinkedInAnalysis');
+    sessionStorage.removeItem('currentView');
   };
 
   const handleLogout = async () => {
-    sessionStorage.clear(); // Clear all temp data
+    sessionStorage.clear();
     await logout();
     navigate('/');
   };
 
-  // Projects View Drill-down
-  if (data && currentView === 'projects') {
+  const handleViewProjects = () => {
+    setCurrentView('projects');
+    sessionStorage.setItem('currentView', 'projects');
+  };
+
+  const handleBackFromProjects = () => {
+    setCurrentView('resume');
+    sessionStorage.setItem('currentView', 'resume');
+  };
+
+  // Projects View (only available for resume analysis)
+  if (resumeData && currentView === 'projects') {
     return (
       <>
         <ProjectsView 
-          projects={data.recommended_projects} 
-          onBack={() => setCurrentView('dashboard')} 
+          projects={resumeData.recommended_projects} 
+          onBack={handleBackFromProjects} 
         />
-        <FloatingChat analysisData={data} />
+        <FloatingChat analysisData={resumeData} />
       </>
     );
   }
@@ -69,10 +106,10 @@ export default function Dashboard({ user }) {
         <div className="glow-orb glow-orb-cyan" />
       </div>
 
-      {/* ✅ HEADER UPDATES */}
+      {/* Header Navigation */}
       <header className="dashboard-header-nav">
         <div className="header-nav-content">
-          {/* 1. Logo Click -> Redirect to Landing Page */}
+          {/* Logo - Click to go to landing page */}
           <div className="header-brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
             <div className="brand-icon-small"><Brain size={24} /></div>
             <span className="brand-text-small">Career<span className="logo-highlight">Architect</span></span>
@@ -80,26 +117,28 @@ export default function Dashboard({ user }) {
           </div>
 
           <div className="header-actions">
-            {/* 2. New Analysis Button - Only visible if we have data */}
-            {data && (
-              <button onClick={resetUpload} className="btn-header-primary">
+            {/* New Analysis Button - Show when we have any data */}
+            {(resumeData || linkedinData) && (
+              <button onClick={resetToUpload} className="btn-header-primary">
                 <PlusCircle size={18} /> New Analysis
               </button>
             )}
 
-            {/* 3. History Button */}
+            {/* History Button */}
             <button onClick={() => navigate('/history')} className="btn-header">
               <HistoryIcon size={18} /> History
             </button>
             
-            {/* 4. User Profile */}
+            {/* User Profile Menu */}
             <div className="user-menu-wrapper">
               <button className="user-avatar" onClick={() => setShowUserMenu(!showUserMenu)}>
                 {user?.photoURL ? <img src={user.photoURL} alt="Avatar" /> : <User size={20} />}
               </button>
               {showUserMenu && (
                 <div className="user-menu-dropdown">
-                  <div className="user-info"><p className="user-email">{user?.email}</p></div>
+                  <div className="user-info">
+                    <p className="user-email">{user?.email}</p>
+                  </div>
                   <button className="menu-item" onClick={() => navigate('/history')}>
                     <HistoryIcon size={16} /> Analysis History
                   </button>
@@ -113,23 +152,31 @@ export default function Dashboard({ user }) {
         </div>
       </header>
 
-      {/* Main Content Area */}
-      {!data ? (
+      {/* Main Content Area - Router */}
+      {currentView === 'upload' && (
         <UploadView 
-          onAnalysisComplete={handleAnalysisComplete} 
+          onAnalysisComplete={handleResumeAnalysisComplete}
+          onLinkedInAnalysisComplete={handleLinkedInAnalysisComplete}
           setLoading={setLoading} 
           loading={loading}
           setError={setError}
           error={error}
         />
-      ) : (
-        <ResultsView 
-          data={data} 
-          onViewProjects={() => setCurrentView('projects')}
-        />
       )}
 
-      {data && <FloatingChat analysisData={data} />}
+      {currentView === 'resume' && resumeData && (
+        <>
+          <ResultsView 
+            data={resumeData} 
+            onViewProjects={handleViewProjects}
+          />
+          <FloatingChat analysisData={resumeData} />
+        </>
+      )}
+
+      {currentView === 'linkedin' && linkedinData && (
+        <LinkedInResultsView data={linkedinData} />
+      )}
     </div>
   );
 }

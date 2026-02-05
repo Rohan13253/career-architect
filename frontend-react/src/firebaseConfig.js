@@ -14,12 +14,12 @@ import {
 // TODO: Ensure your keys are pasted here correctly!
 // --------------------------------------------------------
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey: "AIzaSyCah1R9qd_2HnvEn0st7rerTs80b8yUD6g",
+  authDomain: "careerarchitect-c2be8.firebaseapp.com",
+  projectId: "careerarchitect-c2be8",
+  storageBucket: "careerarchitect-c2be8.firebasestorage.app",
+  messagingSenderId: "483023683406",
+  appId: "1:483023683406:web:fa91e36f044d12db00a81f"
 };
 
 // Initialize Firebase
