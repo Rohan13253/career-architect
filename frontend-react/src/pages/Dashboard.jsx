@@ -17,6 +17,13 @@ export default function Dashboard({ user }) {
   const [currentView, setCurrentView] = useState('upload'); // 'upload', 'resume', 'linkedin', 'projects'
   const [showUserMenu, setShowUserMenu] = useState(false);
 
+/ 🔥 WAKE UP CALL: Fires whenever the user opens or navigates to the Dashboard
+  useEffect(() => {
+    fetch('https://career-architect-1.onrender.com')
+      .then(res => console.log("Dashboard pinged the server: Awake!"))
+      .catch(err => console.log("Dashboard waking up backend..."));
+  }, []);
+
   // Restore analysis from session storage on load
   useEffect(() => {
     const savedResumeAnalysis = sessionStorage.getItem('currentResumeAnalysis');

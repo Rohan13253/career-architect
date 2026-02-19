@@ -40,6 +40,14 @@ function ProtectedRoute({ children }) {
 }
 
 function App() {
+
+  // 🔥 WAKE UP THE SERVER ON LOAD (Added here so it wakes up instantly on the Landing Page)
+  useEffect(() => {
+    fetch('https://career-architect-1.onrender.com')
+      .then(res => console.log("Backend warmed up!"))
+      .catch(err => console.log("Waking up backend..."));
+  }, []);
+
   return (
     <Router>
       <Routes>

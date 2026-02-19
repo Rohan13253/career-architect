@@ -44,6 +44,12 @@ public class AnalysisController {
         this.objectMapper = objectMapper;
     }
 
+    // ========================= WAKE UP ENDPOINT =========================
+    @GetMapping("/ping")
+    public ResponseEntity<String> ping() {
+        return ResponseEntity.ok("Server is awake!");
+    }
+
     // ========================= ANALYZE RESUME =========================
 
     @PostMapping("/analyze")
@@ -70,13 +76,13 @@ public class AnalysisController {
     }
 
     // ========================= SHARED LOGIC (THE ENGINE) =========================
-    
+
     private ResponseEntity<?> processAnalysis(
-            MultipartFile file, 
-            String jd, 
-            String firebaseUid, 
-            String email, 
-            String aiEndpoint, 
+            MultipartFile file,
+            String jd,
+            String firebaseUid,
+            String email,
+            String aiEndpoint,
             String type
     ) {
         log.info("Processing {} Analysis for UID: {}", type, firebaseUid);
@@ -132,16 +138,16 @@ public class AnalysisController {
             // 4. PARSE SCORES (Works for both Resume & LinkedIn JSON structures)
             int score = 0;
             String candidateName = "Unknown";
-            
+
             // Try to find score in "candidate_profile" (Resume) OR top-level "overall_score" (LinkedIn)
             if (aiResult.get("candidate_profile") instanceof Map profile) {
                 Object nObj = profile.get("name");
                 if (nObj != null) candidateName = nObj.toString();
-                
+
                 Object s = profile.get("total_score");
                 if (s instanceof Number n) score = n.intValue();
             }
-            
+
             // Fallback for LinkedIn specific score location
             if (aiResult.containsKey("overall_score") && aiResult.get("overall_score") instanceof Number n) {
                 score = n.intValue();
