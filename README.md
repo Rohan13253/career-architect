@@ -1225,7 +1225,7 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 
 ## 📧 Contact
 
-**Project Maintainer**: Rohan Pawar  
+**Project Maintainer**: Rohan Murlidhar Pawar  
 **Email**: pawar.rohan.work@gmail.com  
 **GitHub**: [@Rohan13253](https://github.com/Rohan13253)
 
