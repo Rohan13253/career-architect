@@ -49,6 +49,10 @@ public class AnalysisController {
     public ResponseEntity<String> ping() {
         return ResponseEntity.ok("Server is awake!");
     }
+    @GetMapping("/")
+public String home() {
+    return "Career Architect API is running!";
+}
 
     // ========================= ANALYZE RESUME =========================
 
