@@ -1244,6 +1244,7 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 - [ ] Real-time collaboration (share analysis with mentors)
 - [ ] Resume builder with AI suggestions
 - [ ] Skill endorsements and peer reviews
+- [ ] Add Spring Security JWT + Swagger + basic JUnit tests 
 
 ---
 
