@@ -139,13 +139,13 @@ CareerArchitect follows a **4-tier microservice architecture** with persistent s
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    FRONTEND (React + Vite)                  │
-│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐  │
-│  │ Landing  │  │   Login   │  │Dashboard │  │ History  │  │
-│  │   Page   │  │   Page    │  │   Page   │  │   View   │  │
-│  └────┬─────┘  └─────┬─────┘  └────┬─────┘  └────┬─────┘  │
-│       │              │              │             │         │
-│       │   (Wake-up ping on load)   │             │         │
-│       └──────────────┴──────────────┴─────────────┘         │
+│  ┌──────────┐  ┌───────────┐  ┌──────────┐  ┌──────────┐    │
+│  │ Landing  │  │   Login   │  │Dashboard │  │ History  │    │
+│  │   Page   │  │   Page    │  │   Page   │  │   View   │    │
+│  └────┬─────┘  └─────┬─────┘  └────┬─────┘  └────┬─────┘    │
+│       │              │             │             │          │
+│       │   (Wake-up ping on load)   │             │          │
+│       └──────────────┴─────────────┴─────────────┘          │
 │                          │                                  │
 │                    Firebase Auth                            │
 │                          │                                  │
@@ -160,18 +160,18 @@ CareerArchitect follows a **4-tier microservice architecture** with persistent s
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │              BACKEND GATEWAY (Spring Boot)                  │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │         AnalysisController                          │   │
-│  │  • GET  /api/v1/ping (wake-up endpoint)            │   │
-│  │  • POST /api/v1/analyze?file=<pdf>&jd=<optional>   │   │
-│  │  • POST /api/v1/analyze-linkedin?file=<pdf>        │   │
-│  │  • GET  /api/v1/history                            │   │
-│  │  • DELETE /api/v1/analysis/{id}                    │   │
-│  │  • Validates PDF (type, size)                      │   │
-│  │  • Forwards to Python AI Service                   │   │
-│  │  • Persists results to PostgreSQL                  │   │
-│  │  • Handles errors gracefully                       │   │
-│  └─────────────────────────────────────────────────────┘   │
+│  ┌─────────────────────────────────────────────────────┐    │
+│  │         AnalysisController                          │    │
+│  │  • GET  /api/v1/ping (wake-up endpoint)             │    │
+│  │  • POST /api/v1/analyze?file=<pdf>&jd=<optional>    │    │
+│  │  • POST /api/v1/analyze-linkedin?file=<pdf>         │    │
+│  │  • GET  /api/v1/history                             │    │
+│  │  • DELETE /api/v1/analysis/{id}                     │    │
+│  │  • Validates PDF (type, size)                       │    │
+│  │  • Forwards to Python AI Service                    │    │
+│  │  • Persists results to PostgreSQL                   │    │
+│  │  • Handles errors gracefully                        │    │
+│  └─────────────────────────────────────────────────────┘    │
 │                          │                                  │
 │                    Port 8080                                │
 │                   (or Render URL)                           │
@@ -792,7 +792,7 @@ careerarchitect/
 │
 ├── frontend-react/                 # React + Vite Frontend
 │   ├── src/
-│   │   ├── firebaseConfig.js       # 🔥 Firebase auth setup
+│   │   ├── firebaseConfig.js       # Firebase auth setup
 │   │   ├── App.jsx                 # Router + Protected Routes + Wake-up ping
 │   │   ├── App.css                 # Complete styling (6000+ lines)
 │   │   ├── pages/
